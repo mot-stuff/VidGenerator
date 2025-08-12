@@ -402,17 +402,26 @@ def generate_batch():
     threading.Thread(target=batch_worker, daemon=True).start()
     return jsonify({'success': True, 'message': 'Batch generation started'})
 
+def init_database():
+    """Initialize database safely"""
+    try:
+        with app.app_context():
+            db.create_all()
+            
+            # Create a test user if none exist
+            if not User.query.first():
+                test_user = User(email='test@example.com')
+                test_user.set_password('password')
+                db.session.add(test_user)
+                db.session.commit()
+                print("✅ Created test user: test@example.com / password")
+    except Exception as e:
+        print(f"⚠️ Database initialization error: {e}")
+        print("Will try to connect on first request...")
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        
-        # Create a test user if none exist
-        if not User.query.first():
-            test_user = User(email='test@example.com')
-            test_user.set_password('password')
-            db.session.add(test_user)
-            db.session.commit()
-            print("Created test user: test@example.com / password")
+    # Initialize database
+    init_database()
     
     # Production vs development
     port = int(os.getenv('PORT', 5000))
@@ -423,3 +432,6 @@ if __name__ == '__main__':
     print(f"📱 Opening at http://{'localhost' if debug else 'production'}:{port}")
     print("🛑 Press Ctrl+C to stop")
     app.run(debug=debug, host=host, port=port)
+
+# For production servers (Gunicorn)
+init_database()

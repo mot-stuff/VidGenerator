@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["python311", "ffmpeg-full", "imagemagick"]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
+
+[phases.build]
+cmds = ["echo 'Build complete'"]
+
+[start]
+cmd = "gunicorn web_app_multiuser:app --bind 0.0.0.0:$PORT --workers 1 --timeout 300"
