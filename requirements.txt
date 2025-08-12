@@ -17,8 +17,8 @@ imageio-ffmpeg==0.4.8
 numpy==1.24.3
 Pillow==10.0.0
 
-# Audio processing
-openai-whisper==20230918
+# Audio processing (lightweight alternative)
+# openai-whisper==20230918  # Too heavy for small VPS - will add later
 
 # YouTube API
 google-auth==2.22.0

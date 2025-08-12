@@ -107,7 +107,11 @@ def whisper_word_timestamps(audio_path: str, language: str = "en", original_text
     Returns a list of {start, end, word} for the entire audio.
     If original_text is provided, we'll try to align the Whisper output to match it.
     """
-    from faster_whisper import WhisperModel
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        # Fallback if Whisper not available - use simple word timing
+        return allocate_karaoke_word_spans(original_text or "", total_duration_s=None, audio_path=audio_path)
 
     model = WhisperModel("base", device="cpu", compute_type="int8")
     segments, _ = model.transcribe(audio_path, language=language, vad_filter=True, word_timestamps=True)
