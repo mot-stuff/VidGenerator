@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - TTS Shorts Generator{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <h1>👪 Brain Blender 3000</h1>
+        <p>Generate AI Slop by {{ user.email }}</p>
+        
+        <!-- User Info -->
+        <div class="user-stats">
+            <span>Logged in as: {{ user.email }}</span>
+        </div>
+    </div>
+    
+    <div class="content">
+        <div class="section">
+            <h2>🎥 Background Videos</h2>
+            <div class="checkbox-group">
+                <input type="checkbox" id="splitScreen" onchange="toggleSplitScreen()">
+                <label for="splitScreen">Split Screen Mode (Horizontal)</label>
+            </div>
+            <div class="video-section">
+                <div class="video-upload">
+                    <label for="video1">Background Video <span id="video1Label">(Top Half)</span></label>
+                    <input type="file" id="video1" accept="video/*" onchange="uploadVideo('video1')">
+                    <div id="video1Info" class="file-info hidden"></div>
+                </div>
+                <div class="video-upload video2-section" id="video2Section">
+                    <label for="video2">Background Video (Bottom Half)</label>
+                    <input type="file" id="video2" accept="video/*" onchange="uploadVideo('video2')">
+                    <div id="video2Info" class="file-info hidden"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>✍️ Text Generation</h2>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="batchMode" onchange="toggleBatchMode()">
+                <label for="batchMode">Batch Mode (CSV)</label>
+            </div>
+            
+            <!-- Single text mode -->
+            <div id="singleTextSection">
+                <div class="form-group">
+                    <label for="textInput">Enter your text for TTS generation</label>
+                    <textarea id="textInput" placeholder="Enter your text here..."></textarea>
+                </div>
+                <button class="btn" onclick="generateVideo()">🚀 Generate Video</button>
+            </div>
+            
+            <!-- Batch CSV mode -->
+            <div id="batchSection" class="hidden">
+                <div class="form-group">
+                    <label for="csvFile">Upload CSV file (one text per line or first column)</label>
+                    <input type="file" id="csvFile" accept=".csv,.txt" onchange="uploadCSV()">
+                    <div id="csvInfo" class="file-info hidden"></div>
+                </div>
+                <button class="btn" onclick="generateBatchVideos()" id="batchGenerateBtn" disabled>🔄 Generate All Videos</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>📁 Generated Videos</h2>
+            <div class="file-list" id="fileList">
+                <div style="padding: 20px; text-align: center; color: #6b7280;">Loading recent videos...</div>
+            </div>
+            <button class="btn btn-secondary" onclick="refreshFileList()">🔄 Refresh</button>
+        </div>
+    </div>
+    
+    <div class="status-bar">
+        <div class="status-indicator">
+            <div class="status-dot"></div>
+            <span id="statusText">Ready to generate videos</span>
+        </div>
+        <div class="controls">
+            <button class="btn btn-secondary" onclick="cleanup()">🧹 Clean Temp</button>
+            <button class="btn btn-danger" id="youtubeBtn" onclick="toggleYoutube()">📤 Setup YT</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Use your original JavaScript with multi-user backend
+let selectedVideos = {"video1": null, "video2": null};
+let splitScreenEnabled = false;
+let csvTexts = [];
+
+function toggleSplitScreen() {
+    splitScreenEnabled = document.getElementById('splitScreen').checked;
+    const video2Section = document.getElementById('video2Section');
+    const video1Label = document.getElementById('video1Label');
+    
+    if (splitScreenEnabled) {
+        video2Section.style.display = 'block';
+        video1Label.textContent = '(Top Half)';
+    } else {
+        video2Section.style.display = 'none';
+        video1Label.textContent = '';
+        selectedVideos.video2 = null;
+        document.getElementById('video2Info').className = 'file-info hidden';
+    }
+}
+
+function toggleBatchMode() {
+    const batchMode = document.getElementById('batchMode').checked;
+    const singleSection = document.getElementById('singleTextSection');
+    const batchSection = document.getElementById('batchSection');
+    
+    if (batchMode) {
+        singleSection.style.display = 'none';
+        batchSection.classList.remove('hidden');
+    } else {
+        singleSection.style.display = 'block';
+        batchSection.classList.add('hidden');
+    }
+}
+
+async function uploadVideo(videoType) {
+    const fileInput = document.getElementById(videoType);
+    const file = fileInput.files[0];
+    
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('video', file);
+    formData.append('type', videoType);
+    
+    updateStatus(`Uploading ${videoType}...`);
+    
+    try {
+        const response = await fetch('/api/upload_video', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            selectedVideos[videoType] = result.file_id;
+            const infoDiv = document.getElementById(videoType + 'Info');
+            infoDiv.textContent = `✅ ${file.name}`;
+            infoDiv.className = 'file-info';
+            updateStatus(`${videoType} uploaded successfully`);
+        } else {
+            updateStatus(`Upload failed: ${result.error}`, true);
+        }
+    } catch (error) {
+        updateStatus(`Upload failed: ${error.message}`, true);
+    }
+}
+
+async function uploadCSV() {
+    const fileInput = document.getElementById('csvFile');
+    const file = fileInput.files[0];
+    
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('csv', file);
+    
+    updateStatus('Processing CSV file...');
+    
+    try {
+        const response = await fetch('/api/upload_csv', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            csvTexts = result.texts;
+            const infoDiv = document.getElementById('csvInfo');
+            infoDiv.textContent = `✅ ${result.count} texts loaded`;
+            infoDiv.className = 'file-info';
+            document.getElementById('batchGenerateBtn').disabled = false;
+            updateStatus(`CSV processed: ${result.count} entries found`);
+        } else {
+            updateStatus(`CSV processing failed: ${result.error}`, true);
+        }
+    } catch (error) {
+        updateStatus(`CSV processing failed: ${error.message}`, true);
+    }
+}
+
+async function generateVideo() {
+    const text = document.getElementById('textInput').value.trim();
+    
+    if (!text) {
+        alert('Please enter some text');
+        return;
+    }
+    
+    if (!selectedVideos.video1) {
+        alert('Please upload at least one video');
+        return;
+    }
+    
+    if (splitScreenEnabled && !selectedVideos.video2) {
+        alert('Please upload a second video for split screen mode');
+        return;
+    }
+    
+    updateStatus('🚀 Generating video...');
+    
+    try {
+        const response = await fetch('/api/generate_video', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                text: text,
+                video_file_id: selectedVideos.video1,
+                video2_file_id: selectedVideos.video2,
+                split_screen_enabled: splitScreenEnabled
+            })
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            updateStatus('✅ Video generation started!');
+            document.getElementById('textInput').value = '';
+        } else {
+            updateStatus(`❌ Generation failed: ${result.error}`, true);
+        }
+    } catch (error) {
+        updateStatus(`❌ Generation failed: ${error.message}`, true);
+    }
+}
+
+async function generateBatchVideos() {
+    if (csvTexts.length === 0) {
+        alert('Please upload a CSV file first');
+        return;
+    }
+    
+    if (!selectedVideos.video1) {
+        alert('Please upload at least one video');
+        return;
+    }
+    
+    if (splitScreenEnabled && !selectedVideos.video2) {
+        alert('Please upload a second video for split screen mode');
+        return;
+    }
+    
+    updateStatus(`🔄 Starting batch generation of ${csvTexts.length} videos...`);
+    
+    try {
+        const response = await fetch('/api/generate_batch', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                texts: csvTexts,
+                video_file_id: selectedVideos.video1,
+                video2_file_id: selectedVideos.video2,
+                split_screen_enabled: splitScreenEnabled
+            })
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            updateStatus('✅ Batch generation started!');
+            setTimeout(refreshFileList, 5000);
+        } else {
+            updateStatus(`❌ Batch generation failed: ${result.error}`, true);
+        }
+    } catch (error) {
+        updateStatus(`❌ Batch generation failed: ${error.message}`, true);
+    }
+}
+
+async function refreshFileList() {
+    try {
+        const response = await fetch('/api/jobs');
+        const jobs = await response.json();
+        
+        const fileList = document.getElementById('fileList');
+        
+        if (jobs.length === 0) {
+            fileList.innerHTML = '<div style="padding: 20px; text-align: center; color: #6b7280;">No videos generated yet</div>';
+            return;
+        }
+
+        fileList.innerHTML = jobs.map(job => `
+            <div class="file-item">
+                <div class="file-name">${job.filename}</div>
+                <div class="file-meta">
+                    Status: <span style="color: ${getStatusColor(job.status)}">${job.status}</span> | 
+                    Created: ${new Date(job.created_at).toLocaleString()}
+                    ${job.error_message ? `<br>Error: ${job.error_message}` : ''}
+                </div>
+                ${job.can_download ? `<a href="/api/download/${job.id}" class="btn btn-secondary" download>📥 Download</a>` : ''}
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading files:', error);
+    }
+}
+
+function getStatusColor(status) {
+    switch(status) {
+        case 'completed': return '#16a34a';
+        case 'failed': return '#dc2626';
+        case 'processing': return '#2563eb';
+        default: return '#ca8a04';
+    }
+}
+
+// Remove quota display since we're not using quotas
+
+function updateStatus(message, isError = false) {
+    const statusText = document.getElementById('statusText');
+    const statusDot = document.querySelector('.status-dot');
+    
+    statusText.textContent = message;
+    
+    if (isError) {
+        statusDot.style.backgroundColor = '#dc2626';
+    } else if (message.includes('✅')) {
+        statusDot.style.backgroundColor = '#16a34a';
+    } else if (message.includes('🔄') || message.includes('🚀')) {
+        statusDot.style.backgroundColor = '#2563eb';
+    } else {
+        statusDot.style.backgroundColor = '#6b7280';
+    }
+}
+
+function cleanup() {
+    fetch('/api/cleanup', { method: 'POST' })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                updateStatus('🧹 Cleanup completed');
+            } else {
+                updateStatus('❌ Cleanup failed', true);
+            }
+        })
+        .catch(error => {
+            updateStatus('❌ Cleanup failed', true);
+        });
+}
+
+function toggleYoutube() {
+    const btn = document.getElementById('youtubeBtn');
+    
+    fetch('/api/youtube/toggle', { method: 'POST' })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                if (result.enabled) {
+                    updateStatus('✅ YouTube setup completed');
+                    btn.textContent = '🤖 Auto Upload';
+                    btn.className = 'btn btn-success';
+                } else {
+                    const status = result.auto_upload ? '🤖 YT: Auto' : '📤 YT: Ready';
+                    updateStatus(`YouTube auto-upload ${result.auto_upload ? 'enabled' : 'disabled'}`);
+                    btn.textContent = result.auto_upload ? '🔄 Auto Upload' : '🤖 Auto Upload';
+                }
+            } else {
+                updateStatus(`❌ YouTube error: ${result.error}`, true);
+            }
+        })
+        .catch(error => {
+            updateStatus('❌ YouTube setup failed', true);
+        });
+}
+
+// Initialize
+refreshFileList();
+setInterval(refreshFileList, 10000);
+</script>
+{% endblock %}

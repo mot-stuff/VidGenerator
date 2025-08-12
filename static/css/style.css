@@ -1,0 +1,239 @@
+/* TTS Shorts Generator Styles */
+* { 
+    margin: 0; 
+    padding: 0; 
+    box-sizing: border-box; 
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh; 
+    padding: 14px;
+}
+
+.container {
+    max-width: 700px; 
+    margin: 0 auto; 
+    background: white;
+    border-radius: 8px; 
+    box-shadow: 0 6px 24px rgba(0,0,0,0.1); 
+    overflow: hidden;
+}
+
+.header {
+    background: linear-gradient(45deg, #4f46e5, #7c3aed);
+    color: white; 
+    padding: 18px; 
+    text-align: center;
+}
+
+.header h1 { 
+    font-size: 1.8rem; 
+    margin-bottom: 6px; 
+}
+
+.header p { 
+    opacity: 0.9; 
+    font-size: 0.85rem; 
+}
+
+.content { 
+    padding: 22px; 
+}
+
+.section {
+    margin-bottom: 22px; 
+    padding: 18px; 
+    border: 2px solid #e5e7eb;
+    border-radius: 6px; 
+    background: #f9fafb;
+}
+
+.section h2 { 
+    color: #374151; 
+    margin-bottom: 12px; 
+    font-size: 1.1rem; 
+}
+
+.form-group { 
+    margin-bottom: 14px; 
+}
+
+label { 
+    display: block; 
+    margin-bottom: 6px; 
+    font-weight: 600; 
+    color: #374151; 
+    font-size: 0.9rem; 
+}
+
+input[type="file"], textarea {
+    width: 100%; 
+    padding: 8px; 
+    border: 2px solid #d1d5db;
+    border-radius: 4px; 
+    font-size: 14px; 
+    transition: border-color 0.2s;
+}
+
+input[type="file"]:focus, textarea:focus { 
+    outline: none; 
+    border-color: #4f46e5; 
+}
+
+textarea { 
+    min-height: 70px; 
+    resize: vertical; 
+    font-family: inherit; 
+}
+
+.checkbox-group { 
+    display: flex; 
+    align-items: center; 
+    gap: 6px; 
+    margin-bottom: 12px; 
+}
+
+input[type="checkbox"] { 
+    width: 16px; 
+    height: 16px; 
+}
+
+.video-section { 
+    display: flex; 
+    gap: 12px; 
+    flex-wrap: wrap; 
+}
+
+.video-upload { 
+    flex: 1; 
+    min-width: 180px; 
+}
+
+.video2-section { 
+    display: none; 
+}
+
+.video2-section.show { 
+    display: block; 
+}
+
+.btn {
+    background: linear-gradient(45deg, #4f46e5, #7c3aed); 
+    color: white; 
+    border: none;
+    padding: 10px 20px; 
+    border-radius: 4px; 
+    font-size: 14px; 
+    font-weight: 600;
+    cursor: pointer; 
+    transition: transform 0.2s, box-shadow 0.2s; 
+    margin: 6px 3px;
+}
+
+.btn:hover { 
+    transform: translateY(-1px); 
+    box-shadow: 0 3px 8px rgba(79, 70, 229, 0.4); 
+}
+
+.btn-secondary { 
+    background: linear-gradient(45deg, #6b7280, #4b5563); 
+}
+
+.btn-danger { 
+    background: linear-gradient(45deg, #ef4444, #dc2626); 
+}
+
+.btn-success { 
+    background: linear-gradient(45deg, #10b981, #059669); 
+}
+
+.status-bar {
+    background: #1f2937; 
+    color: white; 
+    padding: 12px 18px;
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.status-indicator { 
+    display: flex; 
+    align-items: center; 
+    gap: 6px; 
+}
+
+.status-dot {
+    width: 8px; 
+    height: 8px; 
+    border-radius: 50%; 
+    background: #10b981;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse { 
+    0%, 100% { opacity: 1; } 
+    50% { opacity: 0.5; } 
+}
+
+.controls { 
+    display: flex; 
+    gap: 8px; 
+    flex-wrap: wrap; 
+}
+
+.file-info {
+    margin-top: 6px; 
+    padding: 6px; 
+    background: #ecfdf5; 
+    border: 1px solid #10b981;
+    border-radius: 3px; 
+    color: #065f46; 
+    font-size: 12px;
+}
+
+.hidden { 
+    display: none; 
+}
+
+.file-list {
+    max-height: 140px; 
+    overflow-y: auto; 
+    border: 1px solid #d1d5db;
+    border-radius: 4px; 
+    background: white;
+}
+
+.file-item {
+    padding: 8px; 
+    border-bottom: 1px solid #e5e7eb;
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.file-item:last-child { 
+    border-bottom: none; 
+}
+
+.file-item:hover { 
+    background: #f3f4f6; 
+}
+
+@media (max-width: 600px) {
+    .video-section { 
+        flex-direction: column; 
+    }
+    .controls { 
+        justify-content: center; 
+    }
+    .status-bar { 
+        flex-direction: column; 
+        gap: 12px; 
+        text-align: center; 
+    }
+}

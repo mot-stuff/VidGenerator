@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Shorts Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👪 Brain Blender 3000</h1>
+            <p>Generate AI Slop by Tom</p>
+        </div>
+        <div class="content">
+            <div class="section">
+                <h2>🎥 Background Videos</h2>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="splitScreen" onchange="toggleSplitScreen()">
+                    <label for="splitScreen">Split Screen Mode (Horizontal)</label>
+                </div>
+                <div class="video-section">
+                    <div class="video-upload">
+                        <label for="video1">Background Video <span id="video1Label">(Top Half)</span></label>
+                        <input type="file" id="video1" accept="video/*" onchange="uploadVideo('video1')">
+                        <div id="video1Info" class="file-info hidden"></div>
+                    </div>
+                    <div class="video-upload video2-section" id="video2Section">
+                        <label for="video2">Background Video (Bottom Half)</label>
+                        <input type="file" id="video2" accept="video/*" onchange="uploadVideo('video2')">
+                        <div id="video2Info" class="file-info hidden"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="section">
+                <h2>✍️ Text Generation</h2>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="batchMode" onchange="toggleBatchMode()">
+                    <label for="batchMode">Batch Mode (CSV)</label>
+                </div>
+                
+                <!-- Single text mode -->
+                <div id="singleTextSection">
+                    <div class="form-group">
+                        <label for="textInput">Enter your text for TTS generation</label>
+                        <textarea id="textInput" placeholder="Enter your text here..."></textarea>
+                    </div>
+                    <button class="btn" onclick="generateVideo()">🚀 Generate Video</button>
+                </div>
+                
+                <!-- Batch CSV mode -->
+                <div id="batchSection" class="hidden">
+                    <div class="form-group">
+                        <label for="csvFile">Upload CSV file (one text per line or first column)</label>
+                        <input type="file" id="csvFile" accept=".csv,.txt" onchange="uploadCSV()">
+                        <div id="csvInfo" class="file-info hidden"></div>
+                    </div>
+                    <button class="btn" onclick="generateBatchVideos()" id="batchGenerateBtn" disabled>🔄 Generate All Videos</button>
+                </div>
+            </div>
+            <div class="section">
+                <h2>📁 Generated Videos</h2>
+                <div class="file-list" id="fileList">
+                    <div style="padding: 20px; text-align: center; color: #6b7280;">No videos generated yet</div>
+                </div>
+                <button class="btn btn-secondary" onclick="refreshFileList()">🔄 Refresh</button>
+            </div>
+        </div>
+        <div class="status-bar">
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span id="statusText">Ready to generate videos</span>
+            </div>
+            <div class="controls">
+                <button class="btn btn-secondary" onclick="cleanup()">🧹 Clean Temp</button>
+                <button class="btn btn-danger" id="youtubeBtn" onclick="toggleYoutube()">📤 Setup YT</button>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
