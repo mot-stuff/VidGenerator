@@ -1,33 +1,36 @@
-# Web framework
-Flask>=2.3.0
-gunicorn>=21.2.0
+# Core web framework
+Flask==2.3.3
+gunicorn==21.2.0
+Werkzeug==2.3.7
 
-# Database  
-flask-sqlalchemy>=3.1.1
-psycopg2-binary>=2.9.0
+# Database
+flask-sqlalchemy==3.0.5
+psycopg2-binary==2.9.7
 
-# Authentication
-flask-login>=0.6.3
-flask-wtf>=1.2.2
+# Authentication  
+flask-login==0.6.2
+flask-wtf==1.1.1
+WTForms==3.0.1
 
 # Core dependencies
-requests>=2.32.0
-python-dotenv>=1.1.1
+requests==2.31.0
+python-dotenv==1.0.0
 
-# Video processing (Railway-compatible versions)
+# Video processing (Render-compatible)
+setuptools==68.2.2
 moviepy==1.0.3
-imageio==2.31.6
-imageio-ffmpeg==0.4.9
-numpy==1.24.4
-Pillow==10.0.1
+imageio==2.31.1
+imageio-ffmpeg==0.4.8
+numpy==1.24.3
+Pillow==10.0.0
 decorator==5.1.1
 proglog==0.1.10
 
-# Audio processing (CPU-only for Railway)
-openai-whisper==20231117
+# Audio processing (lightweight)
+openai-whisper==20230918
 
 # YouTube API
-google-auth==2.23.3
+google-auth==2.22.0
 google-auth-oauthlib==1.0.0
-google-api-python-client==2.103.0
+google-api-python-client==2.97.0
 
