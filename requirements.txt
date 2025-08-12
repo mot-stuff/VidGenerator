@@ -1,28 +1,30 @@
-# Core video processing
-moviepy>=1.0.3
-requests>=2.32.0
-numpy>=1.26.0
-Pillow>=10,<12
-faster-whisper>=1.0.3
-imageio>=2.31.0
-imageio-ffmpeg>=0.4.8
-
-# Web interface
+# Web framework
 Flask>=2.3.0
-pywebview>=4.0.0
+gunicorn>=21.2.0
 
-# Authentication and database
+# Database
 flask-sqlalchemy>=3.1.1
+psycopg2-binary>=2.9.0
+
+# Authentication
 flask-login>=0.6.3
 flask-wtf>=1.2.2
+
+# Core dependencies
+requests>=2.32.0
 python-dotenv>=1.1.1
 
-# YouTube API integration (optional)
+# Video processing (minimal for Railway)
+moviepy>=1.0.3
+numpy>=1.24.0
+Pillow>=10.0.0
+imageio-ffmpeg>=0.4.8
+
+# Audio processing (lightweight alternative)
+openai-whisper>=20231117
+
+# YouTube API
 google-auth>=2.0.0
 google-auth-oauthlib>=1.0.0
 google-api-python-client>=2.0.0
-
-# Production deployment
-gunicorn>=21.2.0
-psycopg2-binary>=2.9.0
 
