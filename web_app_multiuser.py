@@ -31,7 +31,8 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///tts_saas.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
+# No file size limits on VPS
+# app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # Removed for VPS
 
 # Fix for PostgreSQL connection strings (Railway/Heroku)
 if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
