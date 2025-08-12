@@ -31,6 +31,11 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///tts_saas.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
+
+# Fix for PostgreSQL connection strings (Railway/Heroku)
+if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace('postgres://', 'postgresql://')
 
 # Initialize extensions
 db.init_app(app)
@@ -409,7 +414,12 @@ if __name__ == '__main__':
             db.session.commit()
             print("Created test user: test@example.com / password")
     
+    # Production vs development
+    port = int(os.getenv('PORT', 5000))
+    debug = os.getenv('FLASK_ENV') != 'production'
+    host = '0.0.0.0' if not debug else '127.0.0.1'
+    
     print("🚀 Starting Multi-User TTS Shorts Generator...")
-    print("📱 Opening at http://localhost:5000")
+    print(f"📱 Opening at http://{'localhost' if debug else 'production'}:{port}")
     print("🛑 Press Ctrl+C to stop")
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    app.run(debug=debug, host=host, port=port)
