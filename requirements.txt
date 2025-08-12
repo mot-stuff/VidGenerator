@@ -2,7 +2,7 @@
 Flask>=2.3.0
 gunicorn>=21.2.0
 
-# Database
+# Database  
 flask-sqlalchemy>=3.1.1
 psycopg2-binary>=2.9.0
 
@@ -14,17 +14,20 @@ flask-wtf>=1.2.2
 requests>=2.32.0
 python-dotenv>=1.1.1
 
-# Video processing (minimal for Railway)
-moviepy>=1.0.3
-numpy>=1.24.0
-Pillow>=10.0.0
-imageio-ffmpeg>=0.4.8
+# Video processing (Railway-compatible versions)
+moviepy==1.0.3
+imageio==2.31.6
+imageio-ffmpeg==0.4.9
+numpy==1.24.4
+Pillow==10.0.1
+decorator==5.1.1
+proglog==0.1.10
 
-# Audio processing (lightweight alternative)
-openai-whisper>=20231117
+# Audio processing (CPU-only for Railway)
+openai-whisper==20231117
 
 # YouTube API
-google-auth>=2.0.0
-google-auth-oauthlib>=1.0.0
-google-api-python-client>=2.0.0
+google-auth==2.23.3
+google-auth-oauthlib==1.0.0
+google-api-python-client==2.103.0
 

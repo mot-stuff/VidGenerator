@@ -426,10 +426,10 @@ if __name__ == '__main__':
     # Production vs development
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_ENV') != 'production'
-    host = '0.0.0.0' if not debug else '127.0.0.1'
+    host = '0.0.0.0'  # Always bind to all interfaces for Render
     
     print("🚀 Starting Multi-User TTS Shorts Generator...")
-    print(f"📱 Opening at http://{'localhost' if debug else 'production'}:{port}")
+    print(f"📱 Opening at http://{'localhost' if debug else '0.0.0.0'}:{port}")
     print("🛑 Press Ctrl+C to stop")
     app.run(debug=debug, host=host, port=port)
 
