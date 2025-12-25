@@ -383,11 +383,10 @@ def compose_video_with_tts(
         caption_layers = _render_karaoke_overlay(width, height, karaoke_word_spans)
     else:
         caption_layers = _render_captions_layers(width, height, caption_spans)
-    # Round duration up to nearest frame to ensure last audio samples are preserved
+    # Round duration down to nearest frame to avoid requesting samples past clip duration
     fps_out = base.fps or 30
-    from math import ceil
-
-    duration = (ceil(duration * fps_out)) / fps_out
+    duration = (int(duration * fps_out)) / fps_out
+    duration = max(0.01, duration)
     
     # Prepare final audio (TTS + optional background music)
     final_audio = audio
@@ -413,6 +412,19 @@ def compose_video_with_tts(
             except Exception:
                 # If background music fails to load, just use TTS audio
                 pass
+
+    # Ensure audio covers the full target duration (esp. when tail_padding_s > 0)
+    # MoviePy can throw if it tries to read slightly past the end of an audio clip.
+    try:
+        from moviepy.audio.AudioClip import AudioClip
+
+        silence = AudioClip(lambda t: 0.0, duration=duration, fps=44100)
+        final_audio = CompositeAudioClip([silence, final_audio]).set_duration(duration)
+    except Exception:
+        try:
+            final_audio = final_audio.set_duration(duration)
+        except Exception:
+            pass
     
     final = (
         CompositeVideoClip([base, *caption_layers], size=(width, height))

@@ -8,7 +8,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for
+from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, after_this_request, send_file
 from flask_login import LoginManager, login_required, current_user
 from dotenv import load_dotenv
 
@@ -259,6 +259,18 @@ def generate_video():
                 except Exception:
                     pass
 
+                # Delete uploaded source videos to avoid accumulating large files
+                try:
+                    if video_path.exists():
+                        video_path.unlink()
+                except Exception:
+                    pass
+                try:
+                    if video2_path and video2_path.exists():
+                        video2_path.unlink()
+                except Exception:
+                    pass
+
             except Exception as e:
                 job.status = 'failed'
                 job.error_message = str(e)
@@ -299,8 +311,23 @@ def download_result(job_id):
     result_path = Path(job.result_path)
     if not result_path.exists():
         return jsonify({'error': 'Video file not found'}), 404
-    
-    return send_from_directory(result_path.parent, result_path.name, as_attachment=True)
+
+    @after_this_request
+    def _cleanup(response):
+        try:
+            if result_path.exists():
+                result_path.unlink()
+        except Exception:
+            pass
+        try:
+            # Remove job record so we don't retain history/storage
+            db.session.delete(job)
+            db.session.commit()
+        except Exception:
+            pass
+        return response
+
+    return send_file(result_path, as_attachment=True, download_name=result_path.name)
 
 @app.route('/api/generate_batch', methods=['POST'])
 @login_required
