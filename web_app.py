@@ -169,10 +169,11 @@ def generate_video():
             random_start = random.uniform(0.0, max(0.0, video_duration - 1.0))
             compose_video_with_tts(
                 video_path=selected_videos['video1'], tts_audio_path=tts_path, caption_spans=spans,
-                output_path=output_path, chosen_start_time=random_start, crf=8, video_bitrate="50M",
+                output_path=output_path, chosen_start_time=random_start, crf=18, video_bitrate=None,
                 karaoke_word_spans=word_spans, add_background_music=True, bg_music_volume=0.15,
                 bg_music_dir="assets/background_music", split_screen_enabled=split_screen_enabled,
                 video_path2=selected_videos['video2'] if split_screen_enabled else None,
+                tail_padding_s=3.0,
             )
             processing_status = f"✅ Generated: {output_path.name}"
             try: tts_path.unlink()
@@ -249,14 +250,15 @@ def generate_batch():
                             caption_spans=spans,
                             output_path=output_path,
                             chosen_start_time=random_start,
-                            crf=8,
-                            video_bitrate="50M",
+                            crf=18,
+                            video_bitrate=None,
                             karaoke_word_spans=word_spans,
                             add_background_music=True,
                             bg_music_volume=0.15,
                             bg_music_dir="assets/background_music",
                             split_screen_enabled=split_screen_enabled,
                             video_path2=selected_videos['video2'] if split_screen_enabled else None,
+                            tail_padding_s=3.0,
                         )
                         
                         generated_count += 1

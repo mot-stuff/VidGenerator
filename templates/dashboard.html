@@ -90,6 +90,21 @@ let selectedVideos = {"video1": null, "video2": null};
 let splitScreenEnabled = false;
 let csvTexts = [];
 
+async function parseApiResponse(response) {
+    const contentType = response.headers.get('content-type') || '';
+    const text = await response.text();
+
+    if (contentType.includes('application/json')) {
+        try {
+            return { ok: response.ok, status: response.status, data: JSON.parse(text), raw: text };
+        } catch (e) {
+            return { ok: false, status: response.status, data: null, raw: text || '' };
+        }
+    }
+
+    return { ok: response.ok, status: response.status, data: null, raw: text || '' };
+}
+
 function toggleSplitScreen() {
     splitScreenEnabled = document.getElementById('splitScreen').checked;
     const video2Section = document.getElementById('video2Section');
@@ -137,16 +152,18 @@ async function uploadVideo(videoType) {
             method: 'POST',
             body: formData
         });
-        const result = await response.json();
+        const parsed = await parseApiResponse(response);
+        const result = parsed.data;
         
-        if (result.success) {
+        if (parsed.ok && result && result.success) {
             selectedVideos[videoType] = result.file_id;
             const infoDiv = document.getElementById(videoType + 'Info');
             infoDiv.textContent = `✅ ${file.name}`;
             infoDiv.className = 'file-info';
             updateStatus(`${videoType} uploaded successfully`);
         } else {
-            updateStatus(`Upload failed: ${result.error}`, true);
+            const serverMsg = result && result.error ? result.error : (parsed.raw ? parsed.raw.slice(0, 200) : 'No response body');
+            updateStatus(`Upload failed (${parsed.status}): ${serverMsg}`, true);
         }
     } catch (error) {
         updateStatus(`Upload failed: ${error.message}`, true);
@@ -169,9 +186,10 @@ async function uploadCSV() {
             method: 'POST',
             body: formData
         });
-        const result = await response.json();
+        const parsed = await parseApiResponse(response);
+        const result = parsed.data;
         
-        if (result.success) {
+        if (parsed.ok && result && result.success) {
             csvTexts = result.texts;
             const infoDiv = document.getElementById('csvInfo');
             infoDiv.textContent = `✅ ${result.count} texts loaded`;
@@ -179,7 +197,8 @@ async function uploadCSV() {
             document.getElementById('batchGenerateBtn').disabled = false;
             updateStatus(`CSV processed: ${result.count} entries found`);
         } else {
-            updateStatus(`CSV processing failed: ${result.error}`, true);
+            const serverMsg = result && result.error ? result.error : (parsed.raw ? parsed.raw.slice(0, 200) : 'No response body');
+            updateStatus(`CSV processing failed (${parsed.status}): ${serverMsg}`, true);
         }
     } catch (error) {
         updateStatus(`CSV processing failed: ${error.message}`, true);

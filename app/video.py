@@ -350,9 +350,10 @@ def compose_video_with_tts(
     bg_music_dir: Path | str = "bg music",
     split_screen_enabled: bool = False,
     video_path2: Path | str | None = None,
+    tail_padding_s: float = 0.0,
 ) -> Path:
     audio = AudioFileClip(str(tts_audio_path))
-    duration = float(audio.duration)
+    duration = float(audio.duration) + max(0.0, float(tail_padding_s))
 
     # Store video clips for cleanup later
     source_clips = []
@@ -436,29 +437,15 @@ def compose_video_with_tts(
                     str(out_path),
                     codec="libx264",
                     audio_codec="aac",
-                    preset="veryslow",  # Best quality preset (was "slower")
-                    threads=6,        # Increased threads for better performance
+                    preset="faster",
+                    threads=4,
                     fps=fps_out,
-                    audio_fps=48000,  # Higher audio sample rate for better quality
                     bitrate=video_bitrate,
                     ffmpeg_params=[
-                        "-crf", str(crf), 
-                        "-pix_fmt", "yuv420p", 
-                        "-profile:v", "high", 
-                        "-level", "5.1",      # Support higher resolutions (was 4.1)
-                        "-movflags", "+faststart",  # Optimize for web playback
-                        "-bf", "3",           # More B-frames for better compression (was 2)
-                        "-g", "48",           # Optimized GOP size for better quality (was 60)
-                        "-refs", "5",         # More reference frames for better quality
-                        "-me_method", "umh",  # Better motion estimation
-                        "-subq", "10",        # Highest subpixel motion estimation
-                        "-trellis", "2",      # Rate-distortion optimization
-                        "-aq-mode", "2",      # Adaptive quantization
-                        "-aq-strength", "1.0", # Adaptive quantization strength
-                        "-qmin", "0",         # Allow minimum quantizer for maximum quality
-                        "-qmax", "15",        # Limit maximum quantizer to preserve quality
-                        "-flags", "+cgop",    # Closed GOP for better seeking
-                        "-x264opts", "no-deblock"  # Disable deblocking for sharper output
+                        "-crf", str(crf),
+                        "-pix_fmt", "yuv420p",
+                        "-profile:v", "high",
+                        "-movflags", "+faststart",
                     ],
                     verbose=False,    # Reduce verbose output
                     logger=None,      # Disable logging to prevent potential deadlocks

@@ -1,6 +1,14 @@
 # VPS Deployment Guide - Full Control Video Processing
 
 ## 🚀 Quick VPS Setup (20 minutes to live)
+# how to update and restart since we are deployed
+cd /var/www/tts-generator
+git status
+git restore templates/base.html
+git pull
+sudo systemctl restart tts-generator
+sudo systemctl reload nginx
+
 
 ### Step 1: Create VPS
 1. **Go to [DigitalOcean](https://digitalocean.com)**
@@ -36,7 +44,7 @@ sudo -u postgres psql
 
 # In PostgreSQL prompt:
 CREATE DATABASE tts_saas;
-CREATE USER tts_user WITH ENCRYPTED PASSWORD 'your-secure-password';
+CREATE USER tts_user WITH ENCRYPTED PASSWORD 'Tbalty1212!';
 GRANT ALL PRIVILEGES ON DATABASE tts_saas TO tts_user;
 \q
 ```
@@ -48,7 +56,7 @@ mkdir /var/www/tts-generator
 cd /var/www/tts-generator
 
 # Clone your code (or upload via SCP)
-git clone https://github.com/yourusername/your-repo.git .
+git clone https://github.com/mot-stuff/VidGenerator.git .
 
 # Create virtual environment
 python3 -m venv venv
@@ -105,7 +113,12 @@ server {
     location / {
         include proxy_params;
         proxy_pass http://unix:/var/www/tts-generator/tts-generator.sock;
-        client_max_body_size 500M;  # Allow large video uploads
+        client_max_body_size 2G;  # Allow large video uploads
+        client_body_timeout 300s;
+        send_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
     }
 }
 EOF
@@ -124,7 +137,7 @@ systemctl restart nginx
 2. **Install SSL with Let's Encrypt:**
 ```bash
 apt install certbot python3-certbot-nginx
-certbot --nginx -d your-domain.com
+certbot --nginx -d  mindsrot.app
 ```
 
 ## 🎯 **Benefits of This Setup:**

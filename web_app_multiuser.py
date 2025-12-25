@@ -228,14 +228,15 @@ def generate_video():
                 caption_spans=spans,
                 output_path=output_path,
                 chosen_start_time=random_start,
-                crf=8,
-                video_bitrate="50M",
+                crf=18,
+                video_bitrate=None,
                 karaoke_word_spans=word_spans,
                 add_background_music=True,
                 bg_music_volume=0.15,
                 bg_music_dir="assets/background_music",
                 split_screen_enabled=split_screen_enabled,
-                video_path2=str(video2_path) if video2_path else None
+                video_path2=str(video2_path) if video2_path else None,
+                tail_padding_s=3.0,
             )
             
             # Update job status
@@ -366,14 +367,15 @@ def generate_batch():
                         caption_spans=spans,
                         output_path=output_path,
                         chosen_start_time=random_start,
-                        crf=8,
-                        video_bitrate="50M",
+                        crf=18,
+                        video_bitrate=None,
                         karaoke_word_spans=word_spans,
                         add_background_music=True,
                         bg_music_volume=0.15,
                         bg_music_dir="assets/background_music",
                         split_screen_enabled=split_screen_enabled,
-                        video_path2=str(video2_path) if video2_path else None
+                        video_path2=str(video2_path) if video2_path else None,
+                        tail_padding_s=3.0,
                     )
                     
                     # Update job status
