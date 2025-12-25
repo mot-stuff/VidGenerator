@@ -1,6 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
-from datetime import datetime
+from datetime import datetime, date
 from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
@@ -11,6 +11,14 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
+
+    # Admin / access control
+    is_admin = db.Column(db.Boolean, default=False)
+
+    # Daily quota (production)
+    daily_quota = db.Column(db.Integer, default=3)
+    daily_videos_used = db.Column(db.Integer, default=0)
+    daily_last_reset_date = db.Column(db.Date, default=date.today)
     
     # Usage tracking
     videos_used_this_month = db.Column(db.Integer, default=0)
@@ -48,6 +56,40 @@ class User(UserMixin, db.Model):
     def increment_usage(self):
         """Increment video usage count"""
         self.videos_used_this_month += 1
+        db.session.commit()
+
+    def get_daily_quota(self) -> int:
+        q = self.daily_quota
+        if q is None:
+            return 3
+        try:
+            return max(0, int(q))
+        except Exception:
+            return 3
+
+    def _reset_daily_usage_if_needed(self) -> None:
+        today = datetime.utcnow().date()
+        last = self.daily_last_reset_date
+        if last != today:
+            self.daily_videos_used = 0
+            self.daily_last_reset_date = today
+
+    def remaining_daily_quota(self) -> int:
+        self._reset_daily_usage_if_needed()
+        used = self.daily_videos_used or 0
+        return max(0, self.get_daily_quota() - int(used))
+
+    def can_generate_today(self, count: int = 1) -> bool:
+        if self.is_admin:
+            return True
+        self._reset_daily_usage_if_needed()
+        return self.remaining_daily_quota() >= max(1, int(count))
+
+    def consume_daily_quota(self, count: int = 1) -> None:
+        self._reset_daily_usage_if_needed()
+        if self.daily_videos_used is None:
+            self.daily_videos_used = 0
+        self.daily_videos_used += max(1, int(count))
         db.session.commit()
     
     def __repr__(self):

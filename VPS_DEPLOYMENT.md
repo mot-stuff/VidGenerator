@@ -73,6 +73,7 @@ cat > .env << EOF
 SECRET_KEY=your-super-secure-secret-key-here
 DATABASE_URL=postgresql://tts_user:your-secure-password@localhost/tts_saas
 FLASK_ENV=production
+ADMIN_EMAILS=tomalty333@gmail.com
 EOF
 
 # Initialize database

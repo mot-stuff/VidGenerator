@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Users{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="header">
+    <h1>Admin</h1>
+    <p>User access controls</p>
+  </div>
+
+  <div class="content">
+    <div class="section">
+      <h2>Users</h2>
+      <div class="file-list">
+        {% for u in users %}
+          <div class="file-item" style="align-items: flex-start;">
+            <div style="flex: 1;">
+              <div class="file-name">{{ u.email }}</div>
+              <div class="file-meta">
+                Admin: {{ 'yes' if u.is_admin else 'no' }} |
+                Daily quota: {{ u.get_daily_quota() }} |
+                Remaining today: {{ u.remaining_daily_quota() }}
+              </div>
+              <form method="post" action="{{ url_for('admin_update_user', user_id=u.id) }}" style="margin-top: 10px; display:flex; gap:10px; flex-wrap: wrap; align-items: center;">
+                <label style="margin:0;">
+                  Daily quota
+                  <input name="daily_quota" value="{{ u.get_daily_quota() }}" style="width: 90px; padding:8px; border:2px solid #d1d5db; border-radius:4px;">
+                </label>
+                <label style="margin:0; display:flex; gap:8px; align-items:center;">
+                  <span>Admin</span>
+                  <select name="is_admin" style="padding:8px; border:2px solid #d1d5db; border-radius:4px;">
+                    <option value="0" {% if not u.is_admin %}selected{% endif %}>No</option>
+                    <option value="1" {% if u.is_admin %}selected{% endif %}>Yes</option>
+                  </select>
+                </label>
+                <button class="btn btn-secondary wizard-small" type="submit">Save</button>
+              </form>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+

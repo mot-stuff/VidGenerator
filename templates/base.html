@@ -101,6 +101,9 @@
         <div class="logo">🎬 TTS Shorts Generator</div>
         <div class="user-info">
             Welcome, {{ current_user.email }}
+            {% if current_user.is_admin %}
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary" style="margin-left: 1rem;">Admin</a>
+            {% endif %}
             <a href="{{ url_for('auth.logout') }}" class="btn btn-logout">Logout</a>
         </div>
         <div style="clear: both;"></div>

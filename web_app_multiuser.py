@@ -70,6 +70,65 @@ def get_user_youtube_manager(user_id: int) -> YouTubeUploadManager:
         uploaded_videos_path=user_dir / "uploaded_videos.json"
     )
 
+def _ensure_user_columns() -> None:
+    """Ensure new User columns exist on existing DBs (no migration tool in this repo)."""
+    uri = app.config.get('SQLALCHEMY_DATABASE_URI', '') or ''
+    is_sqlite = uri.startswith('sqlite:')
+
+    with db.engine.begin() as conn:
+        if not is_sqlite:
+            conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;')
+            conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS daily_quota INTEGER DEFAULT 3;')
+            conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS daily_videos_used INTEGER DEFAULT 0;')
+            conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS daily_last_reset_date DATE DEFAULT CURRENT_DATE;')
+            return
+
+        existing: set[str] = set()
+        try:
+            res = conn.exec_driver_sql('PRAGMA table_info(user);')
+            for row in res.fetchall():
+                existing.add(row[1])
+        except Exception:
+            return
+
+        def add_col(col_sql: str, col_name: str) -> None:
+            if col_name in existing:
+                return
+            try:
+                conn.exec_driver_sql(f'ALTER TABLE user ADD COLUMN {col_sql};')
+            except Exception:
+                pass
+
+        add_col('is_admin BOOLEAN DEFAULT 0', 'is_admin')
+        add_col('daily_quota INTEGER DEFAULT 3', 'daily_quota')
+        add_col('daily_videos_used INTEGER DEFAULT 0', 'daily_videos_used')
+        add_col('daily_last_reset_date DATE', 'daily_last_reset_date')
+
+def _sync_admin_emails() -> None:
+    raw = os.getenv('ADMIN_EMAILS', '')
+    emails = [e.strip().lower() for e in raw.split(',') if e.strip()]
+    if not emails:
+        return
+    users = User.query.filter(User.email.in_(emails)).all()
+    changed = False
+    for u in users:
+        if not getattr(u, 'is_admin', False):
+            u.is_admin = True
+            changed = True
+    if changed:
+        db.session.commit()
+
+def admin_required(fn):
+    from functools import wraps
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not current_user.is_authenticated or not getattr(current_user, 'is_admin', False):
+            return redirect(url_for('dashboard'))
+        return fn(*args, **kwargs)
+
+    return wrapper
+
 def _cleanup_expired_user_artifacts(user_id: int, ttl_s: int = 120) -> None:
     now_ts = time.time()
 
@@ -135,13 +194,43 @@ def index():
 def dashboard():
     return render_template('dashboard.html', user=current_user)
 
+@app.route('/admin', methods=['GET'])
+@login_required
+@admin_required
+def admin_dashboard():
+    users = User.query.order_by(User.created_at.desc()).limit(500).all()
+    return render_template('admin.html', users=users)
+
+@app.route('/admin/user/<int:user_id>/update', methods=['POST'])
+@login_required
+@admin_required
+def admin_update_user(user_id: int):
+    u = User.query.get_or_404(user_id)
+    daily_quota = (request.form.get('daily_quota') or '').strip()
+    is_admin = (request.form.get('is_admin') or '').strip()
+
+    if daily_quota:
+        try:
+            u.daily_quota = max(0, int(daily_quota))
+        except Exception:
+            pass
+
+    if is_admin in ('0', '1'):
+        u.is_admin = is_admin == '1'
+
+    db.session.commit()
+    return redirect(url_for('admin_dashboard'))
+
 @app.route('/api/status')
 @login_required
 def get_status():
     return jsonify({
         'user': {
             'email': current_user.email,
-            'status': 'active'
+            'status': 'active',
+            'is_admin': bool(getattr(current_user, 'is_admin', False)),
+            'daily_quota': current_user.get_daily_quota() if hasattr(current_user, 'get_daily_quota') else 3,
+            'daily_remaining': current_user.remaining_daily_quota() if hasattr(current_user, 'remaining_daily_quota') else 0,
         }
     })
 
@@ -226,6 +315,15 @@ def generate_video():
         return jsonify({'error': 'Please upload a video first'}), 400
     if split_screen_enabled and not video2_file_id:
         return jsonify({'error': 'Please upload a second video for split screen mode'}), 400
+
+    # Daily quota enforcement (admin bypasses)
+    try:
+        if not current_user.can_generate_today(1):
+            remaining = current_user.remaining_daily_quota()
+            return jsonify({'error': f'Daily limit reached. Remaining today: {remaining}'}), 429
+        current_user.consume_daily_quota(1)
+    except Exception:
+        return jsonify({'error': 'Quota check failed'}), 500
     
     # Check if uploaded files exist
     user_upload_dir = get_user_directory(current_user.id, "uploads")
@@ -400,6 +498,18 @@ def generate_batch():
         return jsonify({'error': 'Please upload a video first'}), 400
     if split_screen_enabled and not video2_file_id:
         return jsonify({'error': 'Please upload a second video for split screen mode'}), 400
+
+    # Daily quota enforcement (admin bypasses)
+    try:
+        requested = len(texts)
+        if requested <= 0:
+            return jsonify({'error': 'No texts provided'}), 400
+        if not current_user.can_generate_today(requested):
+            remaining = current_user.remaining_daily_quota()
+            return jsonify({'error': f'Daily limit reached. Remaining today: {remaining}'}), 429
+        current_user.consume_daily_quota(requested)
+    except Exception:
+        return jsonify({'error': 'Quota check failed'}), 500
     
     # Check if uploaded files exist
     user_upload_dir = get_user_directory(current_user.id, "uploads")
@@ -517,6 +627,8 @@ def init_database():
     try:
         with app.app_context():
             db.create_all()
+            _ensure_user_columns()
+            _sync_admin_emails()
             
             # Create a test user if none exist
             if not User.query.first():
