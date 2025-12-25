@@ -164,6 +164,7 @@ def generate_video():
     video_file_id = data.get('video_file_id')
     video2_file_id = data.get('video2_file_id')
     split_screen_enabled = data.get('split_screen_enabled', False)
+    user_id = current_user.id
     
     if not text:
         return jsonify({'error': 'Please enter some text'}), 400
@@ -184,81 +185,92 @@ def generate_video():
         if not video2_path.exists():
             return jsonify({'error': 'Second uploaded video not found'}), 400
     
-    def generate_worker():
+    def generate_worker(user_id: int, text: str, video_file_id: str, video2_file_id: str | None, split_screen_enabled: bool):
         job_id = str(uuid.uuid4())
-        user_output_dir = get_user_directory(current_user.id, "outputs")
-        user_temp_dir = get_user_directory(current_user.id, "temp")
-        
-        # Create video job record
-        job = VideoJob(
-            user_id=current_user.id,
-            filename=video_file_id,
-            text_content=text,
-            status='processing'
-        )
-        db.session.add(job)
-        db.session.commit()
-        
-        try:
-            # Generate TTS
-            voice_code = "en_us_002"
-            tts_path = synthesize_tiktok_tts(text=text, voice=voice_code, out_dir=user_temp_dir)
-            
-            # Generate captions
-            spans = allocate_caption_spans(text=text, total_duration_s=None, audio_path=tts_path)
-            try:
-                words = whisper_word_timestamps(str(tts_path), language="en", original_text=text)
-                word_spans = words_to_karaoke_spans(words)
-            except:
-                word_spans = allocate_karaoke_word_spans(text=text, total_duration_s=None, audio_path=tts_path)
-            
-            # Generate output
-            output_filename = f"{job_id}_output.mp4"
-            output_path = user_output_dir / output_filename
-            
-            import random
-            from moviepy.editor import VideoFileClip
-            with VideoFileClip(str(video_path)) as video_clip:
-                video_duration = video_clip.duration
-            random_start = random.uniform(0.0, max(0.0, video_duration - 1.0))
-            
-            compose_video_with_tts(
-                video_path=str(video_path),
-                tts_audio_path=tts_path,
-                caption_spans=spans,
-                output_path=output_path,
-                chosen_start_time=random_start,
-                crf=18,
-                video_bitrate=None,
-                karaoke_word_spans=word_spans,
-                add_background_music=True,
-                bg_music_volume=0.15,
-                bg_music_dir="assets/background_music",
-                split_screen_enabled=split_screen_enabled,
-                video_path2=str(video2_path) if video2_path else None,
-                tail_padding_s=3.0,
+        with app.app_context():
+            user_output_dir = get_user_directory(user_id, "outputs")
+            user_temp_dir = get_user_directory(user_id, "temp")
+
+            # Check if uploaded files exist (thread-safe; no current_user access)
+            user_upload_dir = get_user_directory(user_id, "uploads")
+            video_path = user_upload_dir / video_file_id
+            video2_path = None
+            if split_screen_enabled and video2_file_id:
+                video2_path = user_upload_dir / video2_file_id
+
+            # Create video job record
+            job = VideoJob(
+                user_id=user_id,
+                filename=video_file_id,
+                text_content=text,
+                status='processing'
             )
-            
-            # Update job status
-            job.status = 'completed'
-            job.result_path = str(output_path)
-            job.completed_at = time.time()
-            
-            # Job completed successfully (no quota tracking)
-            
-            # Clean up temp files
+            db.session.add(job)
+            db.session.commit()
+
             try:
-                tts_path.unlink()
-            except:
-                pass
-                
-        except Exception as e:
-            job.status = 'failed'
-            job.error_message = str(e)
-        
-        db.session.commit()
+                # Generate TTS
+                voice_code = "en_us_002"
+                tts_path = synthesize_tiktok_tts(text=text, voice=voice_code, out_dir=user_temp_dir)
+
+                # Generate captions
+                spans = allocate_caption_spans(text=text, total_duration_s=None, audio_path=tts_path)
+                try:
+                    words = whisper_word_timestamps(str(tts_path), language="en", original_text=text)
+                    word_spans = words_to_karaoke_spans(words)
+                except Exception:
+                    word_spans = allocate_karaoke_word_spans(text=text, total_duration_s=None, audio_path=tts_path)
+
+                # Generate output
+                output_filename = f"{job_id}_output.mp4"
+                output_path = user_output_dir / output_filename
+
+                import random
+                from moviepy.editor import VideoFileClip
+                with VideoFileClip(str(video_path)) as video_clip:
+                    video_duration = video_clip.duration
+                random_start = random.uniform(0.0, max(0.0, video_duration - 1.0))
+
+                compose_video_with_tts(
+                    video_path=str(video_path),
+                    tts_audio_path=tts_path,
+                    caption_spans=spans,
+                    output_path=output_path,
+                    chosen_start_time=random_start,
+                    crf=18,
+                    video_bitrate=None,
+                    karaoke_word_spans=word_spans,
+                    add_background_music=True,
+                    bg_music_volume=0.15,
+                    bg_music_dir="assets/background_music",
+                    split_screen_enabled=split_screen_enabled,
+                    video_path2=str(video2_path) if video2_path else None,
+                    tail_padding_s=3.0,
+                )
+
+                # Update job status
+                job.status = 'completed'
+                job.result_path = str(output_path)
+                job.completed_at = time.time()
+
+                # Clean up temp files
+                try:
+                    tts_path.unlink()
+                except Exception:
+                    pass
+
+            except Exception as e:
+                job.status = 'failed'
+                job.error_message = str(e)
+
+            db.session.commit()
+            db.session.remove()
     
-    threading.Thread(target=generate_worker, daemon=True).start()
+    threading.Thread(
+        target=generate_worker,
+        args=(user_id, text, video_file_id, video2_file_id, split_screen_enabled),
+        daemon=True
+    ).start()
     return jsonify({'success': True, 'message': 'Video generation started'})
 
 @app.route('/api/jobs')
@@ -298,6 +310,7 @@ def generate_batch():
     video_file_id = data.get('video_file_id')
     video2_file_id = data.get('video2_file_id')
     split_screen_enabled = data.get('split_screen_enabled', False)
+    user_id = current_user.id
     
     if not texts:
         return jsonify({'error': 'No texts provided'}), 400
@@ -318,91 +331,103 @@ def generate_batch():
         if not video2_path.exists():
             return jsonify({'error': 'Second uploaded video not found'}), 400
     
-    def batch_worker():
-        user_output_dir = get_user_directory(current_user.id, "outputs")
-        user_temp_dir = get_user_directory(current_user.id, "temp")
-        youtube_manager = get_user_youtube_manager(current_user.id)
+    def batch_worker(user_id: int, texts: list[str], video_file_id: str, video2_file_id: str | None, split_screen_enabled: bool):
+        with app.app_context():
+            user_output_dir = get_user_directory(user_id, "outputs")
+            user_temp_dir = get_user_directory(user_id, "temp")
+            youtube_manager = get_user_youtube_manager(user_id)
+            user_upload_dir = get_user_directory(user_id, "uploads")
+            video_path = user_upload_dir / video_file_id
+            video2_path = None
+            if split_screen_enabled and video2_file_id:
+                video2_path = user_upload_dir / video2_file_id
         
-        try:
-            total = len(texts)
-            for i, text in enumerate(texts, 1):
-                job_id = str(uuid.uuid4())
-                
-                # Create video job record
-                job = VideoJob(
-                    user_id=current_user.id,
-                    filename=f"batch_{i:03d}_{video_file_id}",
-                    text_content=text,
-                    status='processing'
-                )
-                db.session.add(job)
-                db.session.commit()
-                
-                try:
-                    # Generate TTS
-                    voice_code = "en_us_002"
-                    tts_path = synthesize_tiktok_tts(text=text, voice=voice_code, out_dir=user_temp_dir)
+            try:
+                total = len(texts)
+                for i, text in enumerate(texts, 1):
+                    job_id = str(uuid.uuid4())
                     
-                    # Generate captions
-                    spans = allocate_caption_spans(text=text, total_duration_s=None, audio_path=tts_path)
-                    try:
-                        words = whisper_word_timestamps(str(tts_path), language="en", original_text=text)
-                        word_spans = words_to_karaoke_spans(words)
-                    except:
-                        word_spans = allocate_karaoke_word_spans(text=text, total_duration_s=None, audio_path=tts_path)
-                    
-                    # Generate output
-                    output_filename = f"batch_{i:03d}_{job_id}_output.mp4"
-                    output_path = user_output_dir / output_filename
-                    
-                    import random
-                    from moviepy.editor import VideoFileClip
-                    with VideoFileClip(str(video_path)) as video_clip:
-                        video_duration = video_clip.duration
-                    random_start = random.uniform(0.0, max(0.0, video_duration - 1.0))
-                    
-                    compose_video_with_tts(
-                        video_path=str(video_path),
-                        tts_audio_path=tts_path,
-                        caption_spans=spans,
-                        output_path=output_path,
-                        chosen_start_time=random_start,
-                        crf=18,
-                        video_bitrate=None,
-                        karaoke_word_spans=word_spans,
-                        add_background_music=True,
-                        bg_music_volume=0.15,
-                        bg_music_dir="assets/background_music",
-                        split_screen_enabled=split_screen_enabled,
-                        video_path2=str(video2_path) if video2_path else None,
-                        tail_padding_s=3.0,
+                    # Create video job record
+                    job = VideoJob(
+                        user_id=user_id,
+                        filename=f"batch_{i:03d}_{video_file_id}",
+                        text_content=text,
+                        status='processing'
                     )
+                    db.session.add(job)
+                    db.session.commit()
                     
-                    # Update job status
-                    job.status = 'completed'
-                    job.result_path = str(output_path)
-                    job.completed_at = time.time()
-                    
-                    # Clean up temp files
                     try:
-                        tts_path.unlink()
-                    except:
-                        pass
+                        # Generate TTS
+                        voice_code = "en_us_002"
+                        tts_path = synthesize_tiktok_tts(text=text, voice=voice_code, out_dir=user_temp_dir)
                         
-                except Exception as e:
-                    job.status = 'failed'
-                    job.error_message = str(e)
-                
-                db.session.commit()
-                
-                # Small delay between videos
-                if i < total:
-                    time.sleep(2)
+                        # Generate captions
+                        spans = allocate_caption_spans(text=text, total_duration_s=None, audio_path=tts_path)
+                        try:
+                            words = whisper_word_timestamps(str(tts_path), language="en", original_text=text)
+                            word_spans = words_to_karaoke_spans(words)
+                        except Exception:
+                            word_spans = allocate_karaoke_word_spans(text=text, total_duration_s=None, audio_path=tts_path)
+                        
+                        # Generate output
+                        output_filename = f"batch_{i:03d}_{job_id}_output.mp4"
+                        output_path = user_output_dir / output_filename
+                        
+                        import random
+                        from moviepy.editor import VideoFileClip
+                        with VideoFileClip(str(video_path)) as video_clip:
+                            video_duration = video_clip.duration
+                        random_start = random.uniform(0.0, max(0.0, video_duration - 1.0))
+                        
+                        compose_video_with_tts(
+                            video_path=str(video_path),
+                            tts_audio_path=tts_path,
+                            caption_spans=spans,
+                            output_path=output_path,
+                            chosen_start_time=random_start,
+                            crf=18,
+                            video_bitrate=None,
+                            karaoke_word_spans=word_spans,
+                            add_background_music=True,
+                            bg_music_volume=0.15,
+                            bg_music_dir="assets/background_music",
+                            split_screen_enabled=split_screen_enabled,
+                            video_path2=str(video2_path) if video2_path else None,
+                            tail_padding_s=3.0,
+                        )
+                        
+                        # Update job status
+                        job.status = 'completed'
+                        job.result_path = str(output_path)
+                        job.completed_at = time.time()
+                        
+                        # Clean up temp files
+                        try:
+                            tts_path.unlink()
+                        except Exception:
+                            pass
+                            
+                    except Exception as e:
+                        job.status = 'failed'
+                        job.error_message = str(e)
                     
-        except Exception as e:
-            print(f"Batch generation error: {e}")
+                    db.session.commit()
+                    
+                    # Small delay between videos
+                    if i < total:
+                        time.sleep(2)
+                        
+            except Exception as e:
+                print(f"Batch generation error: {e}")
+            finally:
+                db.session.remove()
     
-    threading.Thread(target=batch_worker, daemon=True).start()
+    threading.Thread(
+        target=batch_worker,
+        args=(user_id, texts, video_file_id, video2_file_id, split_screen_enabled),
+        daemon=True
+    ).start()
     return jsonify({'success': True, 'message': 'Batch generation started'})
 
 def init_database():
