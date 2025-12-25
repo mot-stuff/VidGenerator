@@ -8,6 +8,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, after_this_request, send_file
 from flask_login import LoginManager, login_required, current_user
 from dotenv import load_dotenv
@@ -68,6 +69,59 @@ def get_user_youtube_manager(user_id: int) -> YouTubeUploadManager:
         upload_queue_path=user_dir / "upload_queue.json",
         uploaded_videos_path=user_dir / "uploaded_videos.json"
     )
+
+def _cleanup_expired_user_artifacts(user_id: int, ttl_s: int = 120) -> None:
+    now_ts = time.time()
+
+    # Delete old files (uploads/outputs/temp) to keep disk usage bounded
+    for subdir in ("uploads", "outputs", "temp"):
+        p = Path("user_data") / str(user_id) / subdir
+        if not p.exists():
+            continue
+        for f in p.iterdir():
+            try:
+                if not f.is_file():
+                    continue
+                if (now_ts - f.stat().st_mtime) > ttl_s:
+                    f.unlink()
+            except Exception:
+                pass
+
+    # Delete old DB job records so they disappear from the UI
+    try:
+        jobs = VideoJob.query.filter_by(user_id=user_id).all()
+        now_dt = datetime.utcnow()
+
+        for job in jobs:
+            age_s = None
+            try:
+                if job.completed_at:
+                    # Some older runs stored a float timestamp; handle both.
+                    if isinstance(job.completed_at, (int, float)):
+                        age_s = now_ts - float(job.completed_at)
+                    else:
+                        age_s = (now_dt - job.completed_at).total_seconds()
+            except Exception:
+                age_s = None
+
+            if age_s is None:
+                try:
+                    age_s = (now_dt - job.created_at).total_seconds()
+                except Exception:
+                    age_s = None
+
+            if age_s is not None and age_s > ttl_s:
+                try:
+                    db.session.delete(job)
+                except Exception:
+                    pass
+
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
 # Routes
 @app.route('/')
@@ -289,6 +343,7 @@ def generate_video():
 @login_required
 def get_jobs():
     """Get user's video jobs"""
+    _cleanup_expired_user_artifacts(current_user.id, ttl_s=120)
     jobs = VideoJob.query.filter_by(user_id=current_user.id).order_by(VideoJob.created_at.desc()).limit(20).all()
     return jsonify([{
         'id': job.id,
@@ -427,7 +482,8 @@ def generate_batch():
                         # Update job status
                         job.status = 'completed'
                         job.result_path = str(output_path)
-                        job.completed_at = time.time()
+                job.completed_at = datetime.utcnow()
+                        job.completed_at = datetime.utcnow()
                         
                         # Clean up temp files
                         try:
