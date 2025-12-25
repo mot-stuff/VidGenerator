@@ -305,7 +305,7 @@ def generate_video():
                 # Update job status
                 job.status = 'completed'
                 job.result_path = str(output_path)
-                job.completed_at = time.time()
+                job.completed_at = datetime.utcnow()
 
                 # Clean up temp files
                 try:
