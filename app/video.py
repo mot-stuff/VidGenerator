@@ -83,10 +83,15 @@ def _render_captions_layers(
     from PIL import Image, ImageDraw, ImageFont
 
     def _find_font(size: int) -> ImageFont.FreeTypeFont:
-        # Prefer Windows Arial if available, then DejaVuSans in PIL package, else default
+        # Prefer project/local or system fonts if available, else PIL packaged font, else default
         candidates = [
             r"C:\\Windows\\Fonts\\TikTok-Sans.ttf",
             r"C:\\Windows\\Fonts\\TikTok-Sans.TTF",
+            # Common Linux fonts (Ubuntu/Debian)
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
         ]
         for p in candidates:
             try:
@@ -184,6 +189,11 @@ def _render_karaoke_overlay(
             r"C:\\Windows\\Fonts\\ARIALBD.TTF",
             r"C:\\Windows\\Fonts\\arial.ttf",
             r"C:\\Windows\\Fonts\\ARIAL.TTF",
+            # Common Linux fonts (Ubuntu/Debian)
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         ]
         for p in candidates:
             try:

@@ -32,6 +32,9 @@ apt install -y python3 python3-pip python3-venv nginx postgresql postgresql-cont
 # Install video processing dependencies
 apt install -y ffmpeg imagemagick
 
+# Fonts (for consistent caption sizing on Linux)
+apt install -y fonts-dejavu-core fonts-liberation
+
 # Install Node.js (for any frontend builds)
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 apt install -y nodejs
