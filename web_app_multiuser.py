@@ -482,7 +482,6 @@ def generate_batch():
                         # Update job status
                         job.status = 'completed'
                         job.result_path = str(output_path)
-                job.completed_at = datetime.utcnow()
                         job.completed_at = datetime.utcnow()
                         
                         # Clean up temp files
