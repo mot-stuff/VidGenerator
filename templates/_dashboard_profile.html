@@ -1,0 +1,26 @@
+{% from "_components.html" import collapsible %}
+
+{% call collapsible('Profile', open=True) %}
+<div class="content">
+    <div class="section">
+        <h2>Account</h2>
+        <div class="wizard-summary">
+            <div class="wizard-summary-row"><div>Email</div><div>{{ user.email }}</div></div>
+            <div class="wizard-summary-row"><div>Remaining today</div><div id="quotaSummaryText">{{ user.remaining_daily_quota() }} / {{ user.get_daily_quota() }}{% if user.bonus_credits and user.bonus_credits > 0 %} (+{{ user.bonus_credits }} bonus){% endif %}</div></div>
+            <div class="wizard-summary-row"><div>Plan</div><div>{{ user.subscription_tier }}</div></div>
+        </div>
+        <div id="rewardedConfig" data-ad-unit-path="{{ config.get('GAM_REWARDED_AD_UNIT_PATH', '') }}" class="hidden"></div>
+        <div id="rewardedContainer" class="hidden" style="margin-top: 12px;">
+            <button class="btn btn-secondary" type="button" id="watchAdBtn">Watch an ad to get +1 generation</button>
+            <div class="wizard-hint" style="margin-top: 8px;">
+                If you're out of quota, you can opt in to a rewarded video ad to unlock one extra generation.
+            </div>
+        </div>
+        <div class="wizard-hint">
+            Quota resets daily (UTC).
+        </div>
+    </div>
+</div>
+{% endcall %}
+
+
