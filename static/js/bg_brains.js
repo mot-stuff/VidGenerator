@@ -69,7 +69,7 @@
         h,
         rot: rand(0, Math.PI * 2),
         vr: rand(-0.5, 0.5),
-        alpha: rand(0.38, 0.58),
+        alpha: 1.0,
       });
     }
 
@@ -150,7 +150,7 @@
     // draw
     for (const it of state.items) {
       ctx.save();
-      ctx.globalAlpha = it.alpha;
+      ctx.globalAlpha = 1.0;
       ctx.translate(it.x, it.y);
       ctx.rotate(it.rot);
       // Make sprites stand out above the gradient without overwhelming the UI.
