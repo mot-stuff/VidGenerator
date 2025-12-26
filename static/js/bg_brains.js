@@ -48,9 +48,14 @@
     const target = Math.max(10, Math.min(28, Math.floor(area / 55000)));
     const items = [];
 
+    const aspect = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1;
+
     for (let i = 0; i < target; i++) {
-      const size = rand(26, 58);
-      const r = size * 0.5;
+      // size is the max dimension; we preserve image aspect ratio when drawing
+      const size = rand(30, 72);
+      const w = aspect >= 1 ? size : size * aspect;
+      const h = aspect >= 1 ? size / aspect : size;
+      const r = Math.max(w, h) * 0.5;
       const speed = rand(12, 42);
       const angle = rand(0, Math.PI * 2);
       items.push({
@@ -60,9 +65,11 @@
         vy: Math.sin(angle) * speed,
         r,
         size,
+        w,
+        h,
         rot: rand(0, Math.PI * 2),
         vr: rand(-0.5, 0.5),
-        alpha: rand(0.22, 0.38),
+        alpha: rand(0.38, 0.58),
       });
     }
 
@@ -146,7 +153,15 @@
       ctx.globalAlpha = it.alpha;
       ctx.translate(it.x, it.y);
       ctx.rotate(it.rot);
-      ctx.drawImage(img, -it.size / 2, -it.size / 2, it.size, it.size);
+      // Make sprites stand out above the gradient without overwhelming the UI.
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 4;
+
+      const w = it.w || it.size;
+      const h = it.h || it.size;
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
       ctx.restore();
     }
 
