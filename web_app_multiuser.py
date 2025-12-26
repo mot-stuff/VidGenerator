@@ -234,6 +234,11 @@ def _get_preset_video_path(config_key: str) -> Path | None:
             p = (Path.cwd() / p).resolve()
         if not p.exists() or not p.is_file():
             return None
+        try:
+            if p.stat().st_size < 1024:
+                return None
+        except Exception:
+            return None
         return p
     except Exception:
         return None
@@ -1094,6 +1099,8 @@ def generate_video():
                     job.error_message = "Background video was removed while processing. Please re-upload and try again."
                 elif "failed to read the first frame" in low:
                     job.error_message = "Couldn't read your background video (possibly corrupted/unsupported). Try re-encoding or uploading a different MP4."
+                elif "stdout" in low and "nonetype" in low:
+                    job.error_message = "FFmpeg couldn't read the selected background video (invalid/corrupt encoding). If this is a preset, re-upload/replace it with a standard H.264/AAC MP4."
                 elif "cancelled by user" in low or "canceled by user" in low:
                     job.status = "cancelled"
                     job.stage = "cancelled"
@@ -1716,6 +1723,8 @@ def generate_batch():
                             job.error_message = "Background video was removed while processing. Please re-upload and try again."
                         elif "failed to read the first frame" in low:
                             job.error_message = "Couldn't read your background video (possibly corrupted/unsupported). Try re-encoding or uploading a different MP4."
+                        elif "stdout" in low and "nonetype" in low:
+                            job.error_message = "FFmpeg couldn't read the selected background video (invalid/corrupt encoding). If this is a preset, re-upload/replace it with a standard H.264/AAC MP4."
                         elif "cancelled by user" in low or "canceled by user" in low:
                             job.status = "cancelled"
                             job.stage = "cancelled"
