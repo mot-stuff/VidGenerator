@@ -877,6 +877,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const ytConnectBtn = qs('#ytConnectBtn');
   const ytClientId = qs('#ytClientId');
   const ytClientSecret = qs('#ytClientSecret');
+  const profileUsername = qs('#profileUsername');
+  const saveUsernameBtn = qs('#saveUsernameBtn');
+  const currentPassword = qs('#currentPassword');
+  const newPassword = qs('#newPassword');
+  const savePasswordBtn = qs('#savePasswordBtn');
 
   renderWizard(state);
   refreshYoutubeUi();
@@ -929,6 +934,60 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStatus('Failed to clear queue', true);
       } finally {
         clearJobsBtn.disabled = false;
+      }
+    });
+  }
+
+  if (saveUsernameBtn && profileUsername) {
+    saveUsernameBtn.addEventListener('click', async () => {
+      saveUsernameBtn.disabled = true;
+      try {
+        const username = String(profileUsername.value || '').trim();
+        const r = await fetch('/api/profile/username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username }),
+        });
+        const parsed = await parseApiResponse(r);
+        if (!parsed.ok || !parsed.data || !parsed.data.success) {
+          const msg = parsed.data && parsed.data.error ? parsed.data.error : parsed.raw ? parsed.raw.slice(0, 200) : 'Failed';
+          updateStatus(msg, true);
+          return;
+        }
+        updateStatus('✅ Username saved');
+        window.location.reload();
+      } catch {
+        updateStatus('Failed to save username', true);
+      } finally {
+        saveUsernameBtn.disabled = false;
+      }
+    });
+  }
+
+  if (savePasswordBtn && currentPassword && newPassword) {
+    savePasswordBtn.addEventListener('click', async () => {
+      savePasswordBtn.disabled = true;
+      try {
+        const current_password = String(currentPassword.value || '');
+        const new_password = String(newPassword.value || '');
+        const r = await fetch('/api/profile/password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ current_password, new_password }),
+        });
+        const parsed = await parseApiResponse(r);
+        if (!parsed.ok || !parsed.data || !parsed.data.success) {
+          const msg = parsed.data && parsed.data.error ? parsed.data.error : parsed.raw ? parsed.raw.slice(0, 200) : 'Failed';
+          updateStatus(msg, true);
+          return;
+        }
+        currentPassword.value = '';
+        newPassword.value = '';
+        updateStatus('✅ Password updated');
+      } catch {
+        updateStatus('Failed to change password', true);
+      } finally {
+        savePasswordBtn.disabled = false;
       }
     });
   }

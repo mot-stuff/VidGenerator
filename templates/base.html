@@ -19,7 +19,7 @@
                 <img class="brand-logo" src="{{ url_for('static', filename='images/logo.png') }}" alt="mindsrot.app logo">
             </a>
             <div class="user-info">
-                Welcome, {{ current_user.email }}
+                Welcome, {{ (current_user.username or current_user.email) }}
                 <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Home</a>
                 <a href="{{ url_for('support') }}" class="btn btn-secondary">Support</a>
                 {% if current_user.is_admin %}

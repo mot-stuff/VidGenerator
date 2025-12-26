@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, after_this_request, send_file, abort, session, flash
 from flask_login import LoginManager, login_required, current_user
 from dotenv import load_dotenv
+import re
 
 # Load environment variables
 load_dotenv()
@@ -104,6 +105,7 @@ def _ensure_user_columns() -> None:
     with db.engine.begin() as conn:
         if not is_sqlite:
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;')
+            conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS username VARCHAR(32);')
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS daily_quota INTEGER DEFAULT 3;')
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS daily_videos_used INTEGER DEFAULT 0;')
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS daily_last_reset_date DATE DEFAULT CURRENT_DATE;')
@@ -129,6 +131,7 @@ def _ensure_user_columns() -> None:
                 pass
 
         add_col('is_admin BOOLEAN DEFAULT 0', 'is_admin')
+        add_col('username TEXT', 'username')
         add_col('daily_quota INTEGER DEFAULT 3', 'daily_quota')
         add_col('daily_videos_used INTEGER DEFAULT 0', 'daily_videos_used')
         add_col('daily_last_reset_date DATE', 'daily_last_reset_date')
@@ -1316,6 +1319,55 @@ def download_result(job_id):
         return response
 
     return send_file(result_path, as_attachment=True, download_name=result_path.name)
+
+
+@app.route('/api/profile/username', methods=['POST'])
+@login_required
+def update_username():
+    data = request.json or {}
+    username = (data.get("username") or "").strip()
+
+    if not username:
+        current_user.username = None
+        db.session.commit()
+        return jsonify({"success": True, "username": None})
+
+    if len(username) < 3 or len(username) > 32:
+        return jsonify({"success": False, "error": "Username must be 3–32 characters"}), 400
+    if not re.fullmatch(r"[A-Za-z0-9_]+", username):
+        return jsonify({"success": False, "error": "Username can only contain letters, numbers, and underscore"}), 400
+
+    candidate = username.lower()
+    exists = (
+        db.session.query(User.id)
+        .filter(User.id != current_user.id)
+        .filter(db.func.lower(User.username) == candidate)
+        .first()
+        is not None
+    )
+    if exists:
+        return jsonify({"success": False, "error": "Username is already taken"}), 409
+
+    current_user.username = username
+    db.session.commit()
+    return jsonify({"success": True, "username": username})
+
+
+@app.route('/api/profile/password', methods=['POST'])
+@login_required
+def update_password():
+    data = request.json or {}
+    current_pw = (data.get("current_password") or "")
+    new_pw = (data.get("new_password") or "")
+
+    if not current_user.check_password(current_pw):
+        return jsonify({"success": False, "error": "Current password is incorrect"}), 400
+    if len(new_pw) < 6:
+        return jsonify({"success": False, "error": "New password must be at least 6 characters"}), 400
+
+    current_user.set_password(new_pw)
+    db.session.commit()
+    return jsonify({"success": True})
 
 
 @app.route('/api/youtube/status')
