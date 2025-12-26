@@ -75,11 +75,14 @@ body {
 
 .brand-logo {
     height: 176.8px;
-    width: auto;
+    width: min(820px, 42vw);
     max-width: 1456px;
     border-radius: 0;
     display: block;
     box-shadow: none;
+    object-fit: cover;
+    /* Crops a bit of the top/bottom empty space baked into the PNG */
+    object-position: left 46%;
 }
 
 .brand-name {
@@ -554,6 +557,7 @@ input[type="checkbox"] {
     }
     .brand-logo {
         height: 112px;
+        width: min(620px, 68vw);
         max-width: 640px;
         border-radius: 0;
     }
