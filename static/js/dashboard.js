@@ -28,6 +28,7 @@ function defaultState() {
     texts: [],
     splitScreen: false,
     videos: { video1: null, video2: null }, // file_id values
+    videoSources: { video1: 'upload', video2: 'upload' }, // upload | preset
   };
 }
 
@@ -74,9 +75,28 @@ function validateStep1(state) {
 }
 
 function validateStep2(state) {
-  if (!state.videos.video1) return false;
-  if (state.splitScreen && !state.videos.video2) return false;
+  const v1Ok = state.videoSources?.video1 === 'preset' || Boolean(state.videos.video1);
+  if (!v1Ok) return false;
+  if (state.splitScreen) {
+    const v2Ok = state.videoSources?.video2 === 'preset' || Boolean(state.videos.video2);
+    if (!v2Ok) return false;
+  }
   return true;
+}
+
+function getPresetConfig() {
+  const el = qs('#presetConfig');
+  const v1 = el ? String(el.dataset.video1Path || '').trim() : '';
+  const v2 = el ? String(el.dataset.video2Path || '').trim() : '';
+  return { video1Path: v1, video2Path: v2 };
+}
+
+function normalizeState(state) {
+  if (!state.videoSources) state.videoSources = { video1: 'upload', video2: 'upload' };
+  if (!state.videoSources.video1) state.videoSources.video1 = 'upload';
+  if (!state.videoSources.video2) state.videoSources.video2 = 'upload';
+  if (!state.videos) state.videos = { video1: null, video2: null };
+  return state;
 }
 
 function renderTextList(state) {
@@ -106,6 +126,8 @@ function renderTextList(state) {
 }
 
 function renderWizard(state) {
+  state = normalizeState(state);
+
   // Stepper
   qsa('.wizard-step').forEach((btn) => {
     const step = Number(btn.getAttribute('data-step'));
@@ -152,6 +174,52 @@ function renderWizard(state) {
   const video2Section = qs('#video2Section');
   if (video2Section) video2Section.style.display = state.splitScreen ? 'block' : 'none';
 
+  // Video sources
+  qsa('input[name="video1Source"]').forEach((r) => {
+    r.checked = r.value === state.videoSources.video1;
+  });
+  qsa('input[name="video2Source"]').forEach((r) => {
+    r.checked = r.value === state.videoSources.video2;
+  });
+
+  const presetCfg = getPresetConfig();
+  const v1Input = qs('#video1');
+  const v2Input = qs('#video2');
+  const v1Info = qs('#video1Info');
+  const v2Info = qs('#video2Info');
+
+  const v1UsingPreset = state.videoSources.video1 === 'preset';
+  const v2UsingPreset = state.videoSources.video2 === 'preset';
+
+  // Disable preset choice if not configured (UI-only; backend is authoritative)
+  const v1PresetRadios = qsa('input[name="video1Source"][value="preset"]');
+  v1PresetRadios.forEach((r) => (r.disabled = !presetCfg.video1Path));
+  const v2PresetRadios = qsa('input[name="video2Source"][value="preset"]');
+  v2PresetRadios.forEach((r) => (r.disabled = !presetCfg.video2Path));
+
+  if (v1Input) v1Input.disabled = v1UsingPreset;
+  if (v2Input) v2Input.disabled = v2UsingPreset;
+
+  if (v1UsingPreset) {
+    if (v1Info) {
+      v1Info.textContent = presetCfg.video1Path ? '✅ Preset selected' : 'Preset not configured';
+      v1Info.classList.remove('hidden');
+    }
+  } else {
+    if (v1Info && !state.videos.video1) v1Info.classList.add('hidden');
+  }
+
+  if (state.splitScreen) {
+    if (v2UsingPreset) {
+      if (v2Info) {
+        v2Info.textContent = presetCfg.video2Path ? '✅ Preset selected' : 'Preset not configured';
+        v2Info.classList.remove('hidden');
+      }
+    } else {
+      if (v2Info && !state.videos.video2) v2Info.classList.add('hidden');
+    }
+  }
+
   // Inputs
   const textInput = qs('#textInput');
   if (textInput && textInput.value !== state.singleText) textInput.value = state.singleText;
@@ -165,8 +233,15 @@ function renderWizard(state) {
   const summary = qs('#wizardSummary');
   if (summary) {
     const textCount = state.textMode === 'single' ? (state.singleText.trim() ? 1 : 0) : state.texts.length;
-    const v1 = state.videos.video1 ? 'uploaded' : 'missing';
-    const v2 = state.splitScreen ? (state.videos.video2 ? 'uploaded' : 'missing') : 'n/a';
+    const v1 =
+      state.videoSources.video1 === 'preset' ? 'preset' : state.videos.video1 ? 'uploaded' : 'missing';
+    const v2 = state.splitScreen
+      ? state.videoSources.video2 === 'preset'
+        ? 'preset'
+        : state.videos.video2
+          ? 'uploaded'
+          : 'missing'
+      : 'n/a';
     summary.innerHTML = `
       <div class="wizard-summary-row"><div>Text items</div><div>${textCount}</div></div>
       <div class="wizard-summary-row"><div>Split screen</div><div>${state.splitScreen ? 'yes' : 'no'}</div></div>
@@ -180,8 +255,9 @@ function renderWizard(state) {
 }
 
 async function validateUploadedVideos(state) {
-  const v1 = state?.videos?.video1 || null;
-  const v2 = state?.videos?.video2 || null;
+  state = normalizeState(state);
+  const v1 = state.videoSources.video1 === 'upload' ? state?.videos?.video1 || null : null;
+  const v2 = state.videoSources.video2 === 'upload' ? state?.videos?.video2 || null : null;
   if (!v1 && !v2) return state;
 
   try {
@@ -214,6 +290,8 @@ async function validateUploadedVideos(state) {
 }
 
 async function uploadVideo(state, videoType) {
+  state = normalizeState(state);
+  if (state.videoSources && state.videoSources[videoType] === 'preset') return state;
   const input = qs(`#${videoType}`);
   if (!input || !input.files || !input.files[0]) return state;
   const file = input.files[0];
@@ -352,6 +430,7 @@ async function fetchAndRenderJobs() {
 }
 
 async function startGeneration(state) {
+  state = normalizeState(state);
   if (!validateStep1(state)) {
     updateStatus('Add at least one text item', true);
     return;
@@ -364,12 +443,17 @@ async function startGeneration(state) {
   const isBatch = state.textMode === 'batch';
   updateStatus(isBatch ? '🔄 Starting batch...' : '🚀 Starting generation...');
 
+  const usePresetVideo1 = state.videoSources.video1 === 'preset';
+  const usePresetVideo2 = state.videoSources.video2 === 'preset';
+
   if (!isBatch) {
     const payload = {
       text: state.singleText.trim(),
       video_file_id: state.videos.video1,
       video2_file_id: state.videos.video2,
       split_screen_enabled: state.splitScreen,
+      use_preset_video1: usePresetVideo1,
+      use_preset_video2: usePresetVideo2,
     };
     const r = await fetch('/api/generate_video', {
       method: 'POST',
@@ -395,6 +479,8 @@ async function startGeneration(state) {
     video_file_id: state.videos.video1,
     video2_file_id: state.videos.video2,
     split_screen_enabled: state.splitScreen,
+    use_preset_video1: usePresetVideo1,
+    use_preset_video2: usePresetVideo2,
   };
   const r = await fetch('/api/generate_batch', {
     method: 'POST',
@@ -415,7 +501,13 @@ async function startGeneration(state) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  let state = loadState() || defaultState();
+  let state = normalizeState(loadState() || defaultState());
+  const presetCfg = getPresetConfig();
+
+  // If preset is configured and the user has no uploaded selection yet, default to preset for video1
+  if (presetCfg.video1Path && !state.videos.video1 && state.videoSources.video1 === 'upload') {
+    state.videoSources.video1 = 'preset';
+  }
 
   const stepper = qs('#wizardStepper');
   const backBtn = qs('#backBtn');
@@ -515,6 +607,36 @@ document.addEventListener('DOMContentLoaded', () => {
       renderWizard(state);
     });
   }
+
+  qsa('input[name="video1Source"]').forEach((r) => {
+    r.addEventListener('change', () => {
+      state.videoSources.video1 = r.value === 'preset' ? 'preset' : 'upload';
+      if (state.videoSources.video1 === 'preset') {
+        state.videos.video1 = null;
+        const info = qs('#video1Info');
+        if (info) info.classList.remove('hidden');
+        const input = qs('#video1');
+        if (input) input.value = '';
+      }
+      saveState(state);
+      renderWizard(state);
+    });
+  });
+
+  qsa('input[name="video2Source"]').forEach((r) => {
+    r.addEventListener('change', () => {
+      state.videoSources.video2 = r.value === 'preset' ? 'preset' : 'upload';
+      if (state.videoSources.video2 === 'preset') {
+        state.videos.video2 = null;
+        const info = qs('#video2Info');
+        if (info) info.classList.remove('hidden');
+        const input = qs('#video2');
+        if (input) input.value = '';
+      }
+      saveState(state);
+      renderWizard(state);
+    });
+  });
 
   const v1 = qs('#video1');
   if (v1) {

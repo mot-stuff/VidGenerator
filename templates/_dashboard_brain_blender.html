@@ -67,6 +67,11 @@
         <div class="section">
             <h2>Step 2: Background video(s)</h2>
 
+            <div id="presetConfig"
+                 class="hidden"
+                 data-video1-path="{{ config.get('PRESET_VIDEO1_PATH', '') }}"
+                 data-video2-path="{{ config.get('PRESET_VIDEO2_PATH', '') }}"></div>
+
             <div class="checkbox-group">
                 <input type="checkbox" id="splitScreen">
                 <label for="splitScreen">Split screen (2 videos)</label>
@@ -75,11 +80,35 @@
             <div class="video-section">
                 <div class="video-upload">
                     <label for="video1">Video 1 <span id="video1Label"></span></label>
+
+                    <div class="wizard-row" style="margin-bottom: 8px;">
+                        <label class="wizard-radio">
+                            <input type="radio" name="video1Source" value="preset">
+                            Preset
+                        </label>
+                        <label class="wizard-radio">
+                            <input type="radio" name="video1Source" value="upload" checked>
+                            Upload
+                        </label>
+                    </div>
+
                     <input type="file" id="video1" accept="video/*">
                     <div id="video1Info" class="file-info hidden"></div>
                 </div>
                 <div class="video-upload video2-section" id="video2Section">
                     <label for="video2">Video 2</label>
+
+                    <div class="wizard-row" style="margin-bottom: 8px;">
+                        <label class="wizard-radio">
+                            <input type="radio" name="video2Source" value="preset">
+                            Preset
+                        </label>
+                        <label class="wizard-radio">
+                            <input type="radio" name="video2Source" value="upload" checked>
+                            Upload
+                        </label>
+                    </div>
+
                     <input type="file" id="video2" accept="video/*">
                     <div id="video2Info" class="file-info hidden"></div>
                 </div>

@@ -36,6 +36,18 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['GAM_REWARDED_AD_UNIT_PATH'] = os.getenv('GAM_REWARDED_AD_UNIT_PATH', '').strip()
 app.config['STRIPE_SECRET_KEY'] = os.getenv('STRIPE_SECRET_KEY', '').strip()
 app.config['STRIPE_WEBHOOK_SECRET'] = os.getenv('STRIPE_WEBHOOK_SECRET', '').strip()
+app.config['PRESET_VIDEO1_PATH'] = os.getenv('PRESET_VIDEO1_PATH', '').strip()
+app.config['PRESET_VIDEO2_PATH'] = os.getenv('PRESET_VIDEO2_PATH', '').strip()
+
+# Convenience default for local/dev: if user dropped a preset into static/video/preset_parkour.mp4
+# and PRESET_VIDEO1_PATH isn't set, use it automatically.
+if not app.config['PRESET_VIDEO1_PATH']:
+    try:
+        _default_preset = Path("static") / "video" / "preset_parkour.mp4"
+        if _default_preset.exists() and _default_preset.is_file():
+            app.config['PRESET_VIDEO1_PATH'] = str(_default_preset)
+    except Exception:
+        pass
 # No file size limits on VPS
 # app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # Removed for VPS
 
@@ -171,6 +183,20 @@ def admin_required(fn):
         return fn(*args, **kwargs)
 
     return wrapper
+
+def _get_preset_video_path(config_key: str) -> Path | None:
+    raw = (app.config.get(config_key) or "").strip()
+    if not raw:
+        return None
+    try:
+        p = Path(raw)
+        if not p.is_absolute():
+            p = (Path.cwd() / p).resolve()
+        if not p.exists() or not p.is_file():
+            return None
+        return p
+    except Exception:
+        return None
 
 def _cleanup_expired_user_artifacts(user_id: int, ttl_s: int = 120) -> None:
     now_ts = time.time()
@@ -642,14 +668,16 @@ def generate_video():
     video_file_id = data.get('video_file_id')
     video2_file_id = data.get('video2_file_id')
     split_screen_enabled = data.get('split_screen_enabled', False)
+    use_preset_video1 = bool(data.get('use_preset_video1', False))
+    use_preset_video2 = bool(data.get('use_preset_video2', False))
     user_id = current_user.id
     
     if not text:
         return jsonify({'error': 'Please enter some text'}), 400
-    if not video_file_id:
-        return jsonify({'error': 'Please upload a video first'}), 400
-    if split_screen_enabled and not video2_file_id:
-        return jsonify({'error': 'Please upload a second video for split screen mode'}), 400
+    if not use_preset_video1 and not video_file_id:
+        return jsonify({'error': 'Please upload a video first (or choose the preset)'}), 400
+    if split_screen_enabled and not use_preset_video2 and not video2_file_id:
+        return jsonify({'error': 'Please upload a second video for split screen mode (or choose the preset)'}), 400
 
     # Daily quota enforcement (admin bypasses)
     try:
@@ -660,19 +688,43 @@ def generate_video():
     except Exception:
         return jsonify({'error': 'Quota check failed'}), 500
     
-    # Check if uploaded files exist
     user_upload_dir = get_user_directory(current_user.id, "uploads")
-    video_path = user_upload_dir / video_file_id
-    if not video_path.exists():
-        return jsonify({'error': 'Uploaded video not found'}), 400
-    
+
+    preset1 = _get_preset_video_path("PRESET_VIDEO1_PATH") if use_preset_video1 else None
+    if use_preset_video1 and preset1 is None:
+        return jsonify({'error': 'Preset video is not configured on the server'}), 400
+
+    preset2 = _get_preset_video_path("PRESET_VIDEO2_PATH") if use_preset_video2 else None
+    if split_screen_enabled and use_preset_video2 and preset2 is None:
+        return jsonify({'error': 'Preset video 2 is not configured on the server'}), 400
+
+    if use_preset_video1:
+        video_path = preset1
+    else:
+        video_path = user_upload_dir / str(video_file_id)
+        if not video_path.exists():
+            return jsonify({'error': 'Uploaded video not found'}), 400
+
     video2_path = None
     if split_screen_enabled:
-        video2_path = user_upload_dir / video2_file_id
-        if not video2_path.exists():
-            return jsonify({'error': 'Second uploaded video not found'}), 400
+        if use_preset_video2:
+            video2_path = preset2
+        else:
+            video2_path = user_upload_dir / str(video2_file_id)
+            if not video2_path.exists():
+                return jsonify({'error': 'Second uploaded video not found'}), 400
     
-    def generate_worker(user_id: int, text: str, video_file_id: str, video2_file_id: str | None, split_screen_enabled: bool):
+    def generate_worker(
+        user_id: int,
+        text: str,
+        video_file_id: str | None,
+        video2_file_id: str | None,
+        split_screen_enabled: bool,
+        use_preset_video1: bool,
+        use_preset_video2: bool,
+        preset1_path: str | None,
+        preset2_path: str | None,
+    ):
         job_id = str(uuid.uuid4())
         with app.app_context():
             user_output_dir = get_user_directory(user_id, "outputs")
@@ -680,10 +732,22 @@ def generate_video():
 
             # Check if uploaded files exist (thread-safe; no current_user access)
             user_upload_dir = get_user_directory(user_id, "uploads")
-            video_path = user_upload_dir / video_file_id
+            if use_preset_video1 and preset1_path:
+                video_path = Path(preset1_path)
+                delete_video1 = False
+            else:
+                video_path = user_upload_dir / str(video_file_id)
+                delete_video1 = True
+
             video2_path = None
-            if split_screen_enabled and video2_file_id:
-                video2_path = user_upload_dir / video2_file_id
+            delete_video2 = True
+            if split_screen_enabled:
+                if use_preset_video2 and preset2_path:
+                    video2_path = Path(preset2_path)
+                    delete_video2 = False
+                elif video2_file_id is not None:
+                    video2_path = user_upload_dir / str(video2_file_id)
+                    delete_video2 = True
 
             # Create video job record
             job = VideoJob(
@@ -748,12 +812,12 @@ def generate_video():
 
                 # Delete uploaded source videos to avoid accumulating large files
                 try:
-                    if video_path.exists():
+                    if delete_video1 and video_path.exists():
                         video_path.unlink()
                 except Exception:
                     pass
                 try:
-                    if video2_path and video2_path.exists():
+                    if delete_video2 and video2_path and video2_path.exists():
                         video2_path.unlink()
                 except Exception:
                     pass
@@ -774,7 +838,17 @@ def generate_video():
     
     threading.Thread(
         target=generate_worker,
-        args=(user_id, text, video_file_id, video2_file_id, split_screen_enabled),
+        args=(
+            user_id,
+            text,
+            video_file_id,
+            video2_file_id,
+            split_screen_enabled,
+            use_preset_video1,
+            use_preset_video2,
+            str(video_path) if use_preset_video1 else None,
+            str(video2_path) if (split_screen_enabled and use_preset_video2 and video2_path) else None,
+        ),
         daemon=True
     ).start()
     return jsonify({'success': True, 'message': 'Video generation started'})
@@ -832,14 +906,16 @@ def generate_batch():
     video_file_id = data.get('video_file_id')
     video2_file_id = data.get('video2_file_id')
     split_screen_enabled = data.get('split_screen_enabled', False)
+    use_preset_video1 = bool(data.get('use_preset_video1', False))
+    use_preset_video2 = bool(data.get('use_preset_video2', False))
     user_id = current_user.id
     
     if not texts:
         return jsonify({'error': 'No texts provided'}), 400
-    if not video_file_id:
-        return jsonify({'error': 'Please upload a video first'}), 400
-    if split_screen_enabled and not video2_file_id:
-        return jsonify({'error': 'Please upload a second video for split screen mode'}), 400
+    if not use_preset_video1 and not video_file_id:
+        return jsonify({'error': 'Please upload a video first (or choose the preset)'}), 400
+    if split_screen_enabled and not use_preset_video2 and not video2_file_id:
+        return jsonify({'error': 'Please upload a second video for split screen mode (or choose the preset)'}), 400
 
     # Daily quota enforcement (admin bypasses)
     try:
@@ -853,28 +929,64 @@ def generate_batch():
     except Exception:
         return jsonify({'error': 'Quota check failed'}), 500
     
-    # Check if uploaded files exist
     user_upload_dir = get_user_directory(current_user.id, "uploads")
-    video_path = user_upload_dir / video_file_id
-    if not video_path.exists():
-        return jsonify({'error': 'Uploaded video not found'}), 400
-    
+
+    preset1 = _get_preset_video_path("PRESET_VIDEO1_PATH") if use_preset_video1 else None
+    if use_preset_video1 and preset1 is None:
+        return jsonify({'error': 'Preset video is not configured on the server'}), 400
+
+    preset2 = _get_preset_video_path("PRESET_VIDEO2_PATH") if use_preset_video2 else None
+    if split_screen_enabled and use_preset_video2 and preset2 is None:
+        return jsonify({'error': 'Preset video 2 is not configured on the server'}), 400
+
+    if use_preset_video1:
+        video_path = preset1
+    else:
+        video_path = user_upload_dir / str(video_file_id)
+        if not video_path.exists():
+            return jsonify({'error': 'Uploaded video not found'}), 400
+
     video2_path = None
     if split_screen_enabled:
-        video2_path = user_upload_dir / video2_file_id
-        if not video2_path.exists():
-            return jsonify({'error': 'Second uploaded video not found'}), 400
+        if use_preset_video2:
+            video2_path = preset2
+        else:
+            video2_path = user_upload_dir / str(video2_file_id)
+            if not video2_path.exists():
+                return jsonify({'error': 'Second uploaded video not found'}), 400
     
-    def batch_worker(user_id: int, texts: list[str], video_file_id: str, video2_file_id: str | None, split_screen_enabled: bool):
+    def batch_worker(
+        user_id: int,
+        texts: list[str],
+        video_file_id: str | None,
+        video2_file_id: str | None,
+        split_screen_enabled: bool,
+        use_preset_video1: bool,
+        use_preset_video2: bool,
+        preset1_path: str | None,
+        preset2_path: str | None,
+    ):
         with app.app_context():
             user_output_dir = get_user_directory(user_id, "outputs")
             user_temp_dir = get_user_directory(user_id, "temp")
             youtube_manager = get_user_youtube_manager(user_id)
             user_upload_dir = get_user_directory(user_id, "uploads")
-            video_path = user_upload_dir / video_file_id
+            if use_preset_video1 and preset1_path:
+                video_path = Path(preset1_path)
+                delete_video1 = False
+            else:
+                video_path = user_upload_dir / str(video_file_id)
+                delete_video1 = True
+
             video2_path = None
-            if split_screen_enabled and video2_file_id:
-                video2_path = user_upload_dir / video2_file_id
+            delete_video2 = True
+            if split_screen_enabled:
+                if use_preset_video2 and preset2_path:
+                    video2_path = Path(preset2_path)
+                    delete_video2 = False
+                elif video2_file_id is not None:
+                    video2_path = user_upload_dir / str(video2_file_id)
+                    delete_video2 = True
         
             try:
                 total = len(texts)
@@ -963,12 +1075,12 @@ def generate_batch():
                 print(f"Batch generation error: {e}")
             finally:
                 try:
-                    if video_path.exists():
+                    if delete_video1 and video_path.exists():
                         video_path.unlink()
                 except Exception:
                     pass
                 try:
-                    if video2_path and video2_path.exists():
+                    if delete_video2 and video2_path and video2_path.exists():
                         video2_path.unlink()
                 except Exception:
                     pass
@@ -976,7 +1088,17 @@ def generate_batch():
     
     threading.Thread(
         target=batch_worker,
-        args=(user_id, texts, video_file_id, video2_file_id, split_screen_enabled),
+        args=(
+            user_id,
+            texts,
+            video_file_id,
+            video2_file_id,
+            split_screen_enabled,
+            use_preset_video1,
+            use_preset_video2,
+            str(video_path) if use_preset_video1 else None,
+            str(video2_path) if (split_screen_enabled and use_preset_video2 and video2_path) else None,
+        ),
         daemon=True
     ).start()
     return jsonify({'success': True, 'message': 'Batch generation started'})
