@@ -3,7 +3,7 @@ from typing import Optional
 from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
-from models import User, AuthEvent, db
+from models import User, AuthEvent, IPBan, db
 
 auth = Blueprint('auth', __name__)
 
@@ -17,6 +17,19 @@ def _get_client_ip() -> str:
         # first IP is the original client
         return xff.split(",")[0].strip()
     return (request.remote_addr or "unknown").strip()
+
+def _is_ip_banned(ip: str) -> bool:
+    if not ip or ip == "unknown":
+        return False
+    ban = IPBan.query.filter_by(ip=ip).first()
+    if not ban:
+        return False
+    if ban.banned_until is None:
+        return True
+    try:
+        return ban.banned_until > datetime.utcnow()
+    except Exception:
+        return True
 
 def _rate_limit_exceeded(ip: str, action: str, email: Optional[str], max_count: int, window_s: int) -> bool:
     cutoff = datetime.utcnow() - timedelta(seconds=window_s)
@@ -57,6 +70,12 @@ def _record_auth_event(ip: str, action: str, email: Optional[str]) -> None:
 def login():
     if request.method == 'POST':
         ip = _get_client_ip()
+        if _is_ip_banned(ip):
+            msg = "Access denied."
+            if request.is_json:
+                return jsonify({"success": False, "error": msg}), 403
+            flash(msg)
+            return render_template('login.html'), 403
         if request.is_json:
             # API login
             data = request.get_json()
@@ -80,6 +99,14 @@ def login():
         
         if user and user.check_password(password):
             login_user(user, remember=True)
+            try:
+                user.last_login_ip = ip
+                db.session.commit()
+            except Exception:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
             _record_auth_event(ip=ip, action="login", email=email_norm)
             if request.is_json:
                 return jsonify({
@@ -105,6 +132,12 @@ def login():
 def register():
     if request.method == 'POST':
         ip = _get_client_ip()
+        if _is_ip_banned(ip):
+            msg = "Access denied."
+            if request.is_json:
+                return jsonify({"success": False, "error": msg}), 403
+            flash(msg)
+            return render_template('register.html'), 403
         if request.is_json:
             # API registration
             data = request.get_json()
@@ -138,6 +171,7 @@ def register():
         # Create new user
         user = User(email=(email_norm or email))
         user.set_password(password)
+        user.last_login_ip = ip
         db.session.add(user)
         db.session.commit()
         _record_auth_event(ip=ip, action="register", email=email_norm)

@@ -4,11 +4,12 @@ Multi-user SaaS TTS Shorts Generator
 """
 
 import os
+import shutil
 import threading
 import time
 import uuid
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, after_this_request, send_file
 from flask_login import LoginManager, login_required, current_user
 from dotenv import load_dotenv
@@ -16,7 +17,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-from models import db, User, VideoJob
+from models import db, User, VideoJob, IPBan
 from auth import auth
 from app.tts.tiktok import synthesize_tiktok_tts, TIKTOK_VOICES
 from app.captions import (
@@ -81,6 +82,7 @@ def _ensure_user_columns() -> None:
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS daily_quota INTEGER DEFAULT 3;')
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS daily_videos_used INTEGER DEFAULT 0;')
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS daily_last_reset_date DATE DEFAULT CURRENT_DATE;')
+            conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS last_login_ip VARCHAR(64);')
             return
 
         existing: set[str] = set()
@@ -103,6 +105,40 @@ def _ensure_user_columns() -> None:
         add_col('daily_quota INTEGER DEFAULT 3', 'daily_quota')
         add_col('daily_videos_used INTEGER DEFAULT 0', 'daily_videos_used')
         add_col('daily_last_reset_date DATE', 'daily_last_reset_date')
+        add_col('last_login_ip TEXT', 'last_login_ip')
+
+def _get_client_ip() -> str:
+    cf_ip = request.headers.get("CF-Connecting-IP")
+    if cf_ip:
+        return cf_ip.strip()
+    xff = request.headers.get("X-Forwarded-For")
+    if xff:
+        return xff.split(",")[0].strip()
+    return (request.remote_addr or "unknown").strip()
+
+def _is_ip_banned(ip: str) -> bool:
+    if not ip or ip == "unknown":
+        return False
+    ban = IPBan.query.filter_by(ip=ip).first()
+    if not ban:
+        return False
+    if ban.banned_until is None:
+        return True
+    try:
+        return ban.banned_until > datetime.utcnow()
+    except Exception:
+        return True
+
+@app.before_request
+def _block_banned_ips():
+    # Allow static assets through; admin sessions can still operate.
+    if request.endpoint == "static":
+        return None
+    if current_user.is_authenticated and getattr(current_user, "is_admin", False):
+        return None
+    ip = _get_client_ip()
+    if _is_ip_banned(ip):
+        return "Access denied.", 403
 
 def _sync_admin_emails() -> None:
     raw = os.getenv('ADMIN_EMAILS', '')
@@ -199,7 +235,8 @@ def dashboard():
 @admin_required
 def admin_dashboard():
     users = User.query.order_by(User.created_at.desc()).limit(500).all()
-    return render_template('admin.html', users=users)
+    bans = IPBan.query.order_by(IPBan.created_at.desc()).limit(500).all()
+    return render_template('admin.html', users=users, bans=bans)
 
 @app.route('/admin/user/<int:user_id>/update', methods=['POST'])
 @login_required
@@ -219,6 +256,119 @@ def admin_update_user(user_id: int):
         u.is_admin = is_admin == '1'
 
     db.session.commit()
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/user/<int:user_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_user(user_id: int):
+    u = User.query.get_or_404(user_id)
+    # Prevent self-delete via UI
+    if u.id == current_user.id:
+        return redirect(url_for('admin_dashboard'))
+
+    try:
+        VideoJob.query.filter_by(user_id=u.id).delete(synchronize_session=False)
+        db.session.delete(u)
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+    # Best-effort cleanup of user files
+    try:
+        shutil.rmtree(Path("user_data") / str(user_id), ignore_errors=True)
+    except Exception:
+        pass
+
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/user/<int:user_id>/ban_ip', methods=['POST'])
+@login_required
+@admin_required
+def admin_ban_user_ip(user_id: int):
+    u = User.query.get_or_404(user_id)
+    ip = (getattr(u, "last_login_ip", None) or "").strip()
+    if not ip:
+        return redirect(url_for('admin_dashboard'))
+
+    days_raw = (request.form.get("days") or "").strip()
+    reason = (request.form.get("reason") or "").strip() or None
+    banned_until = None
+    if days_raw:
+        try:
+            days = max(0, int(days_raw))
+            if days > 0:
+                banned_until = datetime.utcnow() + timedelta(days=days)
+        except Exception:
+            banned_until = None
+
+    ban = IPBan.query.filter_by(ip=ip).first()
+    try:
+        if ban is None:
+            ban = IPBan(ip=ip, reason=reason, banned_until=banned_until)
+            db.session.add(ban)
+        else:
+            ban.reason = reason or ban.reason
+            ban.banned_until = banned_until
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/ipban/add', methods=['POST'])
+@login_required
+@admin_required
+def admin_ipban_add():
+    ip = (request.form.get("ip") or "").strip()
+    if not ip:
+        return redirect(url_for('admin_dashboard'))
+
+    days_raw = (request.form.get("days") or "").strip()
+    reason = (request.form.get("reason") or "").strip() or None
+    banned_until = None
+    if days_raw:
+        try:
+            days = max(0, int(days_raw))
+            if days > 0:
+                banned_until = datetime.utcnow() + timedelta(days=days)
+        except Exception:
+            banned_until = None
+
+    ban = IPBan.query.filter_by(ip=ip).first()
+    try:
+        if ban is None:
+            ban = IPBan(ip=ip, reason=reason, banned_until=banned_until)
+            db.session.add(ban)
+        else:
+            ban.reason = reason or ban.reason
+            ban.banned_until = banned_until
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/ipban/<int:ban_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_ipban_delete(ban_id: int):
+    ban = IPBan.query.get_or_404(ban_id)
+    try:
+        db.session.delete(ban)
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/api/status')

@@ -15,6 +15,9 @@ class User(UserMixin, db.Model):
     # Admin / access control
     is_admin = db.Column(db.Boolean, default=False)
 
+    # Abuse prevention / auditing
+    last_login_ip = db.Column(db.String(64))
+
     # Daily quota (production)
     daily_quota = db.Column(db.Integer, default=3)
     daily_videos_used = db.Column(db.Integer, default=0)
@@ -125,3 +128,12 @@ class AuthEvent(db.Model):
         db.Index("ix_authevent_ip_action_created", "ip", "action", "created_at"),
         db.Index("ix_authevent_email_action_created", "email", "action", "created_at"),
     )
+
+
+class IPBan(db.Model):
+    """Block abusive traffic by IP."""
+    id = db.Column(db.Integer, primary_key=True)
+    ip = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    reason = db.Column(db.String(255))
+    banned_until = db.Column(db.DateTime)  # null = permanent
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)

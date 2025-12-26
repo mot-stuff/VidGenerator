@@ -20,7 +20,8 @@
               <div class="file-meta">
                 Admin: {{ 'yes' if u.is_admin else 'no' }} |
                 Daily quota: {{ u.get_daily_quota() }} |
-                Remaining today: {{ u.remaining_daily_quota() }}
+                Remaining today: {{ u.remaining_daily_quota() }} |
+                Last IP: {{ u.last_login_ip or '—' }}
               </div>
               <form method="post" action="{{ url_for('admin_update_user', user_id=u.id) }}" style="margin-top: 10px; display:flex; gap:10px; flex-wrap: wrap; align-items: center;">
                 <label style="margin:0;">
@@ -36,9 +37,71 @@
                 </label>
                 <button class="btn btn-secondary wizard-small" type="submit">Save</button>
               </form>
+
+              <div style="margin-top: 10px; display:flex; gap:10px; flex-wrap: wrap; align-items: center;">
+                {% if u.last_login_ip %}
+                  <form method="post" action="{{ url_for('admin_ban_user_ip', user_id=u.id) }}" style="display:flex; gap:10px; flex-wrap: wrap; align-items:center;">
+                    <input type="hidden" name="days" value="0">
+                    <button class="btn btn-secondary wizard-small" type="submit">Ban IP</button>
+                  </form>
+                {% endif %}
+
+                {% if current_user.id != u.id %}
+                  <form method="post" action="{{ url_for('admin_delete_user', user_id=u.id) }}" onsubmit="return confirm('Delete this user and all their jobs?');">
+                    <button class="btn btn-secondary wizard-small" type="submit">Delete User</button>
+                  </form>
+                {% endif %}
+              </div>
             </div>
           </div>
         {% endfor %}
+      </div>
+    </div>
+
+    <div class="section" style="margin-top: 26px;">
+      <h2>IP Bans</h2>
+
+      <div class="file-item" style="align-items:flex-start;">
+        <div style="flex:1;">
+          <div class="file-name">Add ban</div>
+          <form method="post" action="{{ url_for('admin_ipban_add') }}" style="margin-top: 10px; display:flex; gap:10px; flex-wrap: wrap; align-items: center;">
+            <label style="margin:0;">
+              IP
+              <input name="ip" placeholder="1.2.3.4" style="width: 180px; padding:8px; border:2px solid #d1d5db; border-radius:4px;">
+            </label>
+            <label style="margin:0;">
+              Days (0 = forever)
+              <input name="days" value="0" style="width: 120px; padding:8px; border:2px solid #d1d5db; border-radius:4px;">
+            </label>
+            <label style="margin:0; flex:1; min-width: 220px;">
+              Reason
+              <input name="reason" placeholder="abuse" style="width: 100%; padding:8px; border:2px solid #d1d5db; border-radius:4px;">
+            </label>
+            <button class="btn btn-secondary wizard-small" type="submit">Ban</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="file-list" style="margin-top: 10px;">
+        {% for b in bans %}
+          <div class="file-item" style="align-items:flex-start;">
+            <div style="flex:1;">
+              <div class="file-name">{{ b.ip }}</div>
+              <div class="file-meta">
+                Until: {{ b.banned_until.isoformat() if b.banned_until else 'forever' }} |
+                Reason: {{ b.reason or '—' }}
+              </div>
+              <form method="post" action="{{ url_for('admin_ipban_delete', ban_id=b.id) }}" onsubmit="return confirm('Unban this IP?');" style="margin-top: 10px;">
+                <button class="btn btn-secondary wizard-small" type="submit">Unban</button>
+              </form>
+            </div>
+          </div>
+        {% endfor %}
+        {% if not bans %}
+          <div class="file-item">
+            <div class="file-meta">No bans</div>
+          </div>
+        {% endif %}
       </div>
     </div>
   </div>
