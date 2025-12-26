@@ -77,7 +77,8 @@
             <div id="presetConfig"
                  class="hidden"
                  data-video1-path="{{ config.get('PRESET_VIDEO1_PATH', '') }}"
-                 data-video2-path="{{ config.get('PRESET_VIDEO2_PATH', '') }}"></div>
+                 data-video2-path="{{ config.get('PRESET_VIDEO2_PATH', '') }}"
+                 data-soap-path="{{ config.get('PRESET_SOAP_CUTTING_PATH', '') }}"></div>
 
             <div class="checkbox-group">
                 <input type="checkbox" id="splitScreen">
@@ -102,6 +103,7 @@
                     <div id="video1PresetRow" class="hidden" style="margin-bottom: 8px;">
                         <select id="video1PresetSelect" class="select">
                             <option value="minecraft_parkour">Minecraft Parkour</option>
+                            <option value="soap_cutting">Soap Cutting</option>
                         </select>
                     </div>
 
@@ -128,6 +130,7 @@
                     <div id="video2PresetRow" class="hidden" style="margin-bottom: 8px;">
                         <select id="video2PresetSelect" class="select">
                             <option value="minecraft_parkour">Minecraft Parkour</option>
+                            <option value="soap_cutting">Soap Cutting</option>
                         </select>
                     </div>
 

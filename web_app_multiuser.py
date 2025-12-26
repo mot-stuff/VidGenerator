@@ -39,6 +39,7 @@ app.config['STRIPE_SECRET_KEY'] = os.getenv('STRIPE_SECRET_KEY', '').strip()
 app.config['STRIPE_WEBHOOK_SECRET'] = os.getenv('STRIPE_WEBHOOK_SECRET', '').strip()
 app.config['PRESET_VIDEO1_PATH'] = os.getenv('PRESET_VIDEO1_PATH', '').strip()
 app.config['PRESET_VIDEO2_PATH'] = os.getenv('PRESET_VIDEO2_PATH', '').strip()
+app.config['PRESET_SOAP_CUTTING_PATH'] = os.getenv('PRESET_SOAP_CUTTING_PATH', '').strip()
 
 # Convenience default for local/dev: if user dropped a preset into static/video/preset_parkour.mp4
 # and PRESET_VIDEO1_PATH isn't set, use it automatically.
@@ -47,6 +48,14 @@ if not app.config['PRESET_VIDEO1_PATH']:
         _default_preset = Path("static") / "video" / "preset_parkour.mp4"
         if _default_preset.exists() and _default_preset.is_file():
             app.config['PRESET_VIDEO1_PATH'] = str(_default_preset)
+    except Exception:
+        pass
+
+if not app.config['PRESET_SOAP_CUTTING_PATH']:
+    try:
+        _default_preset = Path("static") / "video" / "soap.mp4"
+        if _default_preset.exists() and _default_preset.is_file():
+            app.config['PRESET_SOAP_CUTTING_PATH'] = str(_default_preset)
     except Exception:
         pass
 # No file size limits on VPS
@@ -244,6 +253,9 @@ def _resolve_preset_video(preset_id: str | None, slot: str) -> Path | None:
     pid = (preset_id or "").strip().lower()
     if not pid:
         pid = "minecraft_parkour"
+
+    if pid == "soap_cutting":
+        return _get_preset_video_path("PRESET_SOAP_CUTTING_PATH")
 
     if pid != "minecraft_parkour":
         return None

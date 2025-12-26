@@ -102,7 +102,8 @@ function getPresetConfig() {
   const el = qs('#presetConfig');
   const v1 = el ? String(el.dataset.video1Path || '').trim() : '';
   const v2 = el ? String(el.dataset.video2Path || '').trim() : '';
-  return { video1Path: v1, video2Path: v2 };
+  const soap = el ? String(el.dataset.soapPath || '').trim() : '';
+  return { video1Path: v1, video2Path: v2, soapPath: soap };
 }
 
 function normalizeState(state) {
@@ -118,7 +119,17 @@ function normalizeState(state) {
 
 function presetLabelFromId(id) {
   if (id === 'minecraft_parkour') return 'Minecraft Parkour';
+  if (id === 'soap_cutting') return 'Soap Cutting';
   return 'Preset';
+}
+
+function isPresetAvailable(presetId, cfg, slot) {
+  const pid = String(presetId || '').trim();
+  if (pid === 'soap_cutting') return Boolean(cfg.soapPath);
+  if (pid === 'minecraft_parkour') {
+    return slot === 'video2' ? Boolean(cfg.video2Path || cfg.video1Path) : Boolean(cfg.video1Path);
+  }
+  return false;
 }
 
 function renderTextList(state) {
@@ -222,12 +233,23 @@ function renderWizard(state) {
 
   // Disable preset choice if not configured (UI-only; backend is authoritative)
   const v1PresetRadios = qsa('input[name="video1Source"][value="preset"]');
-  v1PresetRadios.forEach((r) => (r.disabled = !presetCfg.video1Path));
+  v1PresetRadios.forEach((r) => (r.disabled = !(presetCfg.video1Path || presetCfg.soapPath)));
   const v2PresetRadios = qsa('input[name="video2Source"][value="preset"]');
-  v2PresetRadios.forEach((r) => (r.disabled = !presetCfg.video2Path));
+  v2PresetRadios.forEach((r) => (r.disabled = !(presetCfg.video2Path || presetCfg.video1Path || presetCfg.soapPath)));
 
   if (v1PresetSelect) v1PresetSelect.value = state.presetIds.video1 || 'minecraft_parkour';
   if (v2PresetSelect) v2PresetSelect.value = state.presetIds.video2 || 'minecraft_parkour';
+
+  if (v1PresetSelect) {
+    Array.from(v1PresetSelect.options).forEach((opt) => {
+      opt.disabled = !isPresetAvailable(opt.value, presetCfg, 'video1');
+    });
+  }
+  if (v2PresetSelect) {
+    Array.from(v2PresetSelect.options).forEach((opt) => {
+      opt.disabled = !isPresetAvailable(opt.value, presetCfg, 'video2');
+    });
+  }
 
   setHidden(v1PresetRow, !v1UsingPreset);
   setHidden(v2PresetRow, !v2UsingPreset);
@@ -240,7 +262,7 @@ function renderWizard(state) {
 
   if (v1UsingPreset) {
     if (v1Info) {
-      v1Info.textContent = presetCfg.video1Path
+      v1Info.textContent = isPresetAvailable(state.presetIds.video1, presetCfg, 'video1')
         ? `✅ Preset: ${presetLabelFromId(state.presetIds.video1)}`
         : 'Preset not configured';
       v1Info.classList.remove('hidden');
@@ -252,7 +274,7 @@ function renderWizard(state) {
   if (state.splitScreen) {
     if (v2UsingPreset) {
       if (v2Info) {
-        v2Info.textContent = (presetCfg.video2Path || presetCfg.video1Path)
+        v2Info.textContent = isPresetAvailable(state.presetIds.video2, presetCfg, 'video2')
           ? `✅ Preset: ${presetLabelFromId(state.presetIds.video2)}`
           : 'Preset not configured';
         v2Info.classList.remove('hidden');
@@ -625,7 +647,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (state.step > maxStep) state.step = maxStep;
 
   // If preset is configured and the user has no uploaded selection yet, default to preset for video1
-  if (presetCfg.video1Path && !state.videos.video1 && state.videoSources.video1 === 'upload') {
+  if ((presetCfg.video1Path || presetCfg.soapPath) && !state.videos.video1 && state.videoSources.video1 === 'upload') {
     state.videoSources.video1 = 'preset';
   }
 
