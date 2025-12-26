@@ -10,20 +10,21 @@ html, body {
 }
 
 :root {
-    /* Theme inspired by static/images/logo.png (bright/glassy) */
-    --bg0: #f7f3ff;
-    --bg1: #eef6ff;
-    --surface: rgba(255, 255, 255, 0.72);
-    --surface2: rgba(255, 255, 255, 0.88);
-    --border: rgba(15, 23, 42, 0.12);
+    /* Theme inspired by static/images/logo.png (thematic, mid-contrast) */
+    --bg0: #ece9ff;
+    --bg1: #e6f2ff;
+    --surface: rgba(255, 255, 255, 0.78);
+    --surface2: rgba(255, 255, 255, 0.92);
+    --border: rgba(15, 23, 42, 0.14);
     --text: rgba(15, 23, 42, 0.92);
-    --muted: rgba(15, 23, 42, 0.68);
-    --muted2: rgba(15, 23, 42, 0.52);
+    --muted: rgba(15, 23, 42, 0.70);
+    --muted2: rgba(15, 23, 42, 0.54);
 
     --brandPink: #ff5fae;
     --brandPurple: #7c3aed;
     --brandBlue: #38bdf8;
     --brandGreen: #84cc16;
+    --accentDark: #14532d;
 
     --shadow: 0 22px 60px rgba(15, 23, 42, 0.14);
 }
@@ -31,10 +32,10 @@ html, body {
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background:
-        radial-gradient(1100px 640px at 12% 10%, rgba(255, 95, 174, 0.20), transparent 62%),
-        radial-gradient(1200px 720px at 84% 12%, rgba(124, 58, 237, 0.20), transparent 64%),
-        radial-gradient(900px 520px at 50% 110%, rgba(132, 204, 22, 0.14), transparent 62%),
-        radial-gradient(900px 520px at 90% 92%, rgba(56, 189, 248, 0.12), transparent 62%),
+        radial-gradient(1100px 640px at 12% 10%, rgba(255, 95, 174, 0.18), transparent 62%),
+        radial-gradient(1200px 720px at 84% 12%, rgba(124, 58, 237, 0.18), transparent 64%),
+        radial-gradient(900px 520px at 50% 110%, rgba(20, 83, 45, 0.14), transparent 62%),
+        radial-gradient(900px 520px at 90% 92%, rgba(56, 189, 248, 0.10), transparent 62%),
         linear-gradient(180deg, var(--bg0), var(--bg1));
     min-height: 100vh; 
     padding: 8px;
@@ -50,9 +51,10 @@ body {
     max-width: 1200px;
     margin: 0 auto 10px auto;
     background:
-        radial-gradient(900px 160px at 16% 0%, rgba(255, 95, 174, 0.14), transparent 60%),
-        radial-gradient(900px 160px at 84% 0%, rgba(124, 58, 237, 0.14), transparent 60%),
-        rgba(255, 255, 255, 0.78);
+        radial-gradient(900px 160px at 16% 0%, rgba(255, 95, 174, 0.12), transparent 60%),
+        radial-gradient(900px 160px at 84% 0%, rgba(124, 58, 237, 0.12), transparent 60%),
+        radial-gradient(900px 160px at 50% 0%, rgba(20, 83, 45, 0.10), transparent 62%),
+        rgba(255, 255, 255, 0.82);
     border: 1px solid var(--border);
     backdrop-filter: blur(10px);
     border-radius: 12px;
@@ -74,8 +76,8 @@ body {
 }
 
 .brand-logo {
-    height: 88px;
-    width: min(520px, 38vw);
+    height: 84px;
+    width: min(520px, 36vw);
     max-width: 720px;
     border-radius: 0;
     display: block;
@@ -298,6 +300,11 @@ input[type="checkbox"] {
     border: 1px solid var(--border);
 }
 
+.btn-secondary:hover {
+    background: rgba(20, 83, 45, 0.10);
+    border-color: rgba(20, 83, 45, 0.22);
+}
+
 .btn-danger { 
     background: rgba(239, 68, 68, 0.92);
 }
@@ -332,7 +339,7 @@ input[type="checkbox"] {
     width: 8px; 
     height: 8px; 
     border-radius: 50%; 
-    background: #10b981;
+    background: var(--accentDark);
     animation: pulse 2s infinite;
 }
 
@@ -396,7 +403,7 @@ input[type="checkbox"] {
 .wizard-step {
     flex: 1;
     border: 1px solid var(--border);
-    background: rgba(2, 6, 23, 0.30);
+    background: rgba(15, 23, 42, 0.04);
     border-radius: 12px;
     padding: 10px 12px;
     font-weight: 700;
@@ -405,13 +412,13 @@ input[type="checkbox"] {
 }
 
 .wizard-step.active {
-    border-color: rgba(139, 92, 246, 0.55);
-    background: rgba(139, 92, 246, 0.14);
+    border-color: rgba(20, 83, 45, 0.30);
+    background: rgba(20, 83, 45, 0.10);
 }
 
 .wizard-step.done {
-    border-color: rgba(16, 185, 129, 0.45);
-    background: rgba(16, 185, 129, 0.10);
+    border-color: rgba(20, 83, 45, 0.22);
+    background: rgba(20, 83, 45, 0.07);
 }
 
 .wizard-panel {
