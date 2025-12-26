@@ -10,31 +10,31 @@ html, body {
 }
 
 :root {
-    /* Theme inspired by static/images/logo.png */
-    --bg0: #070813;
-    --bg1: #0b0f1f;
-    --surface: rgba(12, 18, 34, 0.70);
-    --surface2: rgba(12, 18, 34, 0.88);
-    --border: rgba(148, 163, 184, 0.16);
-    --text: rgba(244, 247, 255, 0.92);
-    --muted: rgba(244, 247, 255, 0.66);
-    --muted2: rgba(244, 247, 255, 0.50);
+    /* Theme inspired by static/images/logo.png (bright/glassy) */
+    --bg0: #f7f3ff;
+    --bg1: #eef6ff;
+    --surface: rgba(255, 255, 255, 0.72);
+    --surface2: rgba(255, 255, 255, 0.88);
+    --border: rgba(15, 23, 42, 0.12);
+    --text: rgba(15, 23, 42, 0.92);
+    --muted: rgba(15, 23, 42, 0.68);
+    --muted2: rgba(15, 23, 42, 0.52);
 
-    --brandPink: #ff78b9;
-    --brandPurple: #8b5cf6;
-    --brandBlue: #63b3ff;
-    --brandGreen: #a3e635;
+    --brandPink: #ff5fae;
+    --brandPurple: #7c3aed;
+    --brandBlue: #38bdf8;
+    --brandGreen: #84cc16;
 
-    --shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
+    --shadow: 0 22px 60px rgba(15, 23, 42, 0.14);
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background:
-        radial-gradient(1000px 560px at 12% 12%, rgba(255, 120, 185, 0.16), transparent 60%),
-        radial-gradient(1200px 680px at 84% 18%, rgba(139, 92, 246, 0.18), transparent 62%),
-        radial-gradient(900px 520px at 55% 110%, rgba(163, 230, 53, 0.10), transparent 60%),
-        radial-gradient(900px 520px at 88% 88%, rgba(99, 179, 255, 0.10), transparent 60%),
+        radial-gradient(1100px 640px at 12% 10%, rgba(255, 95, 174, 0.20), transparent 62%),
+        radial-gradient(1200px 720px at 84% 12%, rgba(124, 58, 237, 0.20), transparent 64%),
+        radial-gradient(900px 520px at 50% 110%, rgba(132, 204, 22, 0.14), transparent 62%),
+        radial-gradient(900px 520px at 90% 92%, rgba(56, 189, 248, 0.12), transparent 62%),
         linear-gradient(180deg, var(--bg0), var(--bg1));
     min-height: 100vh; 
     padding: 8px;
@@ -50,9 +50,9 @@ body {
     max-width: 1200px;
     margin: 0 auto 10px auto;
     background:
-        radial-gradient(900px 140px at 16% 0%, rgba(255, 120, 185, 0.10), transparent 60%),
-        radial-gradient(900px 140px at 84% 0%, rgba(139, 92, 246, 0.12), transparent 60%),
-        rgba(10, 14, 27, 0.78);
+        radial-gradient(900px 160px at 16% 0%, rgba(255, 95, 174, 0.14), transparent 60%),
+        radial-gradient(900px 160px at 84% 0%, rgba(124, 58, 237, 0.14), transparent 60%),
+        rgba(255, 255, 255, 0.78);
     border: 1px solid var(--border);
     backdrop-filter: blur(10px);
     border-radius: 12px;
@@ -61,7 +61,7 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.40);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
 }
 
 .brand {
@@ -74,9 +74,9 @@ body {
 }
 
 .brand-logo {
-    height: 176.8px;
-    width: min(820px, 42vw);
-    max-width: 1456px;
+    height: 88px;
+    width: min(520px, 38vw);
+    max-width: 720px;
     border-radius: 0;
     display: block;
     box-shadow: none;
@@ -116,9 +116,9 @@ body {
 
 .header {
     background:
-        radial-gradient(1000px 260px at 18% 0%, rgba(255, 120, 185, 0.20), transparent 62%),
-        radial-gradient(1000px 260px at 82% 0%, rgba(139, 92, 246, 0.20), transparent 62%),
-        linear-gradient(180deg, rgba(10, 14, 27, 0.92), rgba(12, 18, 34, 0.92));
+        radial-gradient(1000px 260px at 18% 0%, rgba(255, 95, 174, 0.18), transparent 62%),
+        radial-gradient(1000px 260px at 82% 0%, rgba(124, 58, 237, 0.18), transparent 62%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.82));
     color: var(--text); 
     padding: 16px 18px; 
     text-align: center;
@@ -162,7 +162,7 @@ body {
 
 .alert {
     border: 1px solid var(--border);
-    background: rgba(15, 23, 42, 0.6);
+    background: rgba(255, 255, 255, 0.78);
     color: var(--text);
     border-radius: 12px;
     padding: 12px 14px;
@@ -192,7 +192,7 @@ input[type="file"], textarea, input[type="email"], input[type="password"], input
     border-radius: 10px; 
     font-size: 14px; 
     transition: border-color 0.2s, box-shadow 0.2s;
-    background: rgba(2, 6, 23, 0.58);
+    background: rgba(255, 255, 255, 0.92);
     color: var(--text);
 }
 
@@ -212,7 +212,7 @@ textarea {
     max-width: 460px;
     margin: 60px auto;
     padding: 22px;
-    background: rgba(15, 23, 42, 0.86);
+    background: rgba(255, 255, 255, 0.88);
     border: 1px solid var(--border);
     border-radius: 14px;
     box-shadow: var(--shadow);
@@ -269,7 +269,7 @@ input[type="checkbox"] {
 }
 
 .btn {
-    background: linear-gradient(90deg, rgba(255, 120, 185, 0.92), rgba(139, 92, 246, 0.92));
+    background: linear-gradient(90deg, rgba(255, 95, 174, 0.92), rgba(124, 58, 237, 0.92));
     color: white; 
     border: none;
     padding: 10px 14px; 
@@ -293,7 +293,7 @@ input[type="checkbox"] {
 }
 
 .btn-secondary { 
-    background: rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.06);
     color: var(--text);
     border: 1px solid var(--border);
 }
@@ -311,7 +311,7 @@ input[type="checkbox"] {
 }
 
 .status-bar {
-    background: rgba(2, 6, 23, 0.55);
+    background: rgba(255, 255, 255, 0.72);
     border-top: 1px solid var(--border);
     color: var(--text);
     padding: 12px 16px;
@@ -350,10 +350,10 @@ input[type="checkbox"] {
 .file-info {
     margin-top: 6px; 
     padding: 6px; 
-    background: rgba(16, 185, 129, 0.10);
-    border: 1px solid rgba(16, 185, 129, 0.35);
+    background: rgba(132, 204, 22, 0.14);
+    border: 1px solid rgba(132, 204, 22, 0.28);
     border-radius: 10px; 
-    color: rgba(209, 250, 229, 0.95);
+    color: rgba(15, 23, 42, 0.78);
     font-size: 12px;
 }
 
@@ -556,8 +556,8 @@ input[type="checkbox"] {
         padding: 12px;
     }
     .brand-logo {
-        height: 112px;
-        width: min(620px, 68vw);
+        height: 72px;
+        width: min(520px, 70vw);
         max-width: 640px;
         border-radius: 0;
     }
