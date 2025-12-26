@@ -964,16 +964,36 @@ def generate_video():
 def get_jobs():
     """Get user's video jobs"""
     _cleanup_expired_user_artifacts(current_user.id, ttl_s=120)
-    jobs = VideoJob.query.filter_by(user_id=current_user.id).order_by(VideoJob.created_at.desc()).limit(20).all()
-    return jsonify([{
-        'id': job.id,
-        'filename': job.filename,
-        'status': job.status,
-        'created_at': job.created_at.isoformat(),
-        'completed_at': job.completed_at.isoformat() if job.completed_at else None,
-        'error_message': job.error_message,
-        'can_download': job.status == 'completed' and job.result_path
-    } for job in jobs])
+    # Query scalar columns (not ORM instances) so we don't crash if a row is deleted mid-request.
+    rows = (
+        db.session.query(
+            VideoJob.id,
+            VideoJob.filename,
+            VideoJob.status,
+            VideoJob.created_at,
+            VideoJob.completed_at,
+            VideoJob.error_message,
+            VideoJob.result_path,
+        )
+        .filter(VideoJob.user_id == current_user.id)
+        .order_by(VideoJob.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    return jsonify(
+        [
+            {
+                "id": r[0],
+                "filename": r[1],
+                "status": r[2],
+                "created_at": r[3].isoformat() if r[3] else None,
+                "completed_at": r[4].isoformat() if r[4] else None,
+                "error_message": r[5],
+                "can_download": (r[2] == "completed" and bool(r[6])),
+            }
+            for r in rows
+        ]
+    )
 
 @app.route('/api/download/<int:job_id>')
 @login_required
