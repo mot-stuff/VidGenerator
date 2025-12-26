@@ -29,8 +29,8 @@ class User(UserMixin, db.Model):
     videos_used_this_month = db.Column(db.Integer, default=0)
     last_reset_date = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Subscription info (simple for now)
-    subscription_tier = db.Column(db.String(50), default='free')  # free, starter, pro
+    # Subscription info
+    subscription_tier = db.Column(db.String(50), default='free')  # free, pro
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -42,10 +42,13 @@ class User(UserMixin, db.Model):
         """Get video quota based on subscription tier"""
         quotas = {
             'free': 5,
-            'starter': 25,
             'pro': 100
         }
-        return quotas.get(self.subscription_tier, 5)
+        tier = (self.subscription_tier or 'free').strip().lower()
+        # Backwards compatibility: older DBs may still contain "starter"
+        if tier == 'starter':
+            tier = 'free'
+        return quotas.get(tier, 5)
     
     def can_generate_video(self):
         """Check if user can generate another video"""

@@ -33,7 +33,6 @@
                   <span>Plan</span>
                   <select name="subscription_tier" style="padding:8px; border:2px solid #d1d5db; border-radius:4px;">
                     <option value="free" {% if (u.subscription_tier or 'free') == 'free' %}selected{% endif %}>Free</option>
-                    <option value="starter" {% if u.subscription_tier == 'starter' %}selected{% endif %}>Starter</option>
                     <option value="pro" {% if u.subscription_tier == 'pro' %}selected{% endif %}>Pro</option>
                   </select>
                 </label>

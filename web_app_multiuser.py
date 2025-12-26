@@ -428,7 +428,7 @@ def admin_update_user(user_id: int):
     if is_admin in ('0', '1'):
         u.is_admin = is_admin == '1'
 
-    if subscription_tier in ('free', 'starter', 'pro'):
+    if subscription_tier in ('free', 'pro'):
         u.subscription_tier = subscription_tier
 
     db.session.commit()
