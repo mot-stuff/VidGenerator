@@ -74,9 +74,9 @@ body {
 }
 
 .brand-logo {
-    height: 68px;
+    height: 136px;
     width: auto;
-    max-width: 560px;
+    max-width: 1120px;
     border-radius: 0;
     display: block;
     box-shadow: none;
@@ -553,8 +553,8 @@ input[type="checkbox"] {
         padding: 12px;
     }
     .brand-logo {
-        height: 56px;
-        max-width: 320px;
+        height: 112px;
+        max-width: 640px;
         border-radius: 0;
     }
     .wizard-stepper {
