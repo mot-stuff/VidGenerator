@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import re
 from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
@@ -143,10 +144,12 @@ def register():
             data = request.get_json()
             email = data.get('email')
             password = data.get('password')
+            username = data.get('username')
         else:
             # Form registration
             email = request.form.get('email')
             password = request.form.get('password')
+            username = request.form.get('username')
 
         email_norm = (email or "").strip().lower() or None
         # Rate limit registrations to prevent quota bypass by mass-account creation
@@ -167,9 +170,42 @@ def register():
                 return jsonify({'success': False, 'error': error_msg}), 400
             flash(error_msg)
             return render_template('register.html')
+
+        username = (username or "").strip()
+        if username:
+            if len(username) < 3 or len(username) > 32:
+                msg = "Username must be 3–32 characters"
+                _record_auth_event(ip=ip, action="register", email=email_norm)
+                if request.is_json:
+                    return jsonify({"success": False, "error": msg}), 400
+                flash(msg)
+                return render_template('register.html')
+            if not re.fullmatch(r"[A-Za-z0-9_]+", username):
+                msg = "Username can only contain letters, numbers, and underscore"
+                _record_auth_event(ip=ip, action="register", email=email_norm)
+                if request.is_json:
+                    return jsonify({"success": False, "error": msg}), 400
+                flash(msg)
+                return render_template('register.html')
+
+            candidate = username.lower()
+            exists = (
+                db.session.query(User.id)
+                .filter(db.func.lower(User.username) == candidate)
+                .first()
+                is not None
+            )
+            if exists:
+                msg = "Username is already taken"
+                _record_auth_event(ip=ip, action="register", email=email_norm)
+                if request.is_json:
+                    return jsonify({"success": False, "error": msg}), 409
+                flash(msg)
+                return render_template('register.html')
         
         # Create new user
         user = User(email=(email_norm or email))
+        user.username = username or None
         user.set_password(password)
         user.last_login_ip = ip
         db.session.add(user)
