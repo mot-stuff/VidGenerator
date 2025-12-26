@@ -11,10 +11,10 @@ html, body {
 
 :root {
     /* Theme inspired by static/images/logo.png (thematic, mid-contrast) */
-    --bg0: #ece9ff;
-    --bg1: #e6f2ff;
-    --surface: rgba(255, 255, 255, 0.78);
-    --surface2: rgba(255, 255, 255, 0.92);
+    --bg0: #d6d0f2;
+    --bg1: #cfe3f3;
+    --surface: rgba(255, 255, 255, 0.76);
+    --surface2: rgba(255, 255, 255, 0.86);
     --border: rgba(15, 23, 42, 0.14);
     --text: rgba(15, 23, 42, 0.92);
     --muted: rgba(15, 23, 42, 0.70);
@@ -26,16 +26,16 @@ html, body {
     --brandGreen: #84cc16;
     --accentDark: #14532d;
 
-    --shadow: 0 22px 60px rgba(15, 23, 42, 0.14);
+    --shadow: 0 22px 60px rgba(15, 23, 42, 0.18);
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background:
-        radial-gradient(1100px 640px at 12% 10%, rgba(255, 95, 174, 0.18), transparent 62%),
-        radial-gradient(1200px 720px at 84% 12%, rgba(124, 58, 237, 0.18), transparent 64%),
-        radial-gradient(900px 520px at 50% 110%, rgba(20, 83, 45, 0.14), transparent 62%),
-        radial-gradient(900px 520px at 90% 92%, rgba(56, 189, 248, 0.10), transparent 62%),
+        radial-gradient(1100px 640px at 12% 10%, rgba(255, 95, 174, 0.14), transparent 62%),
+        radial-gradient(1200px 720px at 84% 12%, rgba(124, 58, 237, 0.14), transparent 64%),
+        radial-gradient(900px 520px at 50% 110%, rgba(20, 83, 45, 0.12), transparent 62%),
+        radial-gradient(900px 520px at 90% 92%, rgba(56, 189, 248, 0.08), transparent 62%),
         linear-gradient(180deg, var(--bg0), var(--bg1));
     min-height: 100vh; 
     padding: 8px;
@@ -51,10 +51,10 @@ body {
     max-width: 1200px;
     margin: 0 auto 10px auto;
     background:
-        radial-gradient(900px 160px at 16% 0%, rgba(255, 95, 174, 0.12), transparent 60%),
-        radial-gradient(900px 160px at 84% 0%, rgba(124, 58, 237, 0.12), transparent 60%),
-        radial-gradient(900px 160px at 50% 0%, rgba(20, 83, 45, 0.10), transparent 62%),
-        rgba(255, 255, 255, 0.82);
+        radial-gradient(900px 160px at 16% 0%, rgba(255, 95, 174, 0.10), transparent 60%),
+        radial-gradient(900px 160px at 84% 0%, rgba(124, 58, 237, 0.10), transparent 60%),
+        radial-gradient(900px 160px at 50% 0%, rgba(20, 83, 45, 0.08), transparent 62%),
+        rgba(255, 255, 255, 0.74);
     border: 1px solid var(--border);
     backdrop-filter: blur(10px);
     border-radius: 12px;
@@ -76,15 +76,14 @@ body {
 }
 
 .brand-logo {
-    height: 84px;
-    width: min(520px, 36vw);
-    max-width: 720px;
+    height: 52px;
+    width: auto;
+    max-width: 260px;
     border-radius: 0;
     display: block;
     box-shadow: none;
-    object-fit: cover;
-    /* Crops a bit of the top/bottom empty space baked into the PNG */
-    object-position: left 46%;
+    object-fit: contain;
+    object-position: left center;
 }
 
 .brand-name {
@@ -373,7 +372,7 @@ input[type="checkbox"] {
     overflow-y: auto; 
     border: 1px solid var(--border);
     border-radius: 12px; 
-    background: rgba(2, 6, 23, 0.35);
+    background: rgba(255, 255, 255, 0.72);
 }
 
 .file-item {
@@ -455,7 +454,7 @@ input[type="checkbox"] {
     margin-top: 12px;
     border: 1px solid var(--border);
     border-radius: 12px;
-    background: rgba(2, 6, 23, 0.30);
+    background: rgba(255, 255, 255, 0.72);
     overflow: hidden;
 }
 
@@ -463,7 +462,7 @@ input[type="checkbox"] {
     display: flex;
     justify-content: space-between;
     padding: 10px 12px;
-    background: rgba(2, 6, 23, 0.35);
+    background: rgba(255, 255, 255, 0.86);
     border-bottom: 1px solid var(--border);
     font-weight: 700;
     color: var(--text);
@@ -510,13 +509,13 @@ input[type="checkbox"] {
     justify-content: flex-end;
     padding: 10px 12px;
     border-top: 1px solid var(--border);
-    background: rgba(2, 6, 23, 0.35);
+    background: rgba(255, 255, 255, 0.86);
 }
 
 .wizard-summary {
     border: 1px solid var(--border);
     border-radius: 12px;
-    background: rgba(2, 6, 23, 0.30);
+    background: rgba(255, 255, 255, 0.72);
     overflow: hidden;
     margin-bottom: 12px;
 }
@@ -563,9 +562,9 @@ input[type="checkbox"] {
         padding: 12px;
     }
     .brand-logo {
-        height: 72px;
-        width: min(520px, 70vw);
-        max-width: 640px;
+        height: 46px;
+        width: auto;
+        max-width: 220px;
         border-radius: 0;
     }
     .wizard-stepper {
