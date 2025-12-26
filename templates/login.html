@@ -5,7 +5,6 @@
 {% block content %}
 <div class="auth-container auth-container-wide">
     <img class="auth-logo" src="{{ url_for('static', filename='images/logo.png') }}" alt="mindsrot.app logo">
-    <h2 class="auth-title">Login</h2>
     <div class="auth-grid">
         <div class="section">
             <h2>What is mindsrot.app?</h2>
@@ -19,6 +18,8 @@
                 <li><strong>Plans</strong>: Free and Pro. Some features (like the Upload step) are Pro-only.</li>
             </ul>
         </div>
+
+        <h2 class="auth-title">Login</h2>
 
         <div class="section">
             <form method="POST">
