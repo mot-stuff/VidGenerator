@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <canvas id="bgBrainsCanvas" class="bg-anim-canvas" aria-hidden="true"></canvas>
     <div class="app-shell">
         {% if current_user.is_authenticated %}
         <nav class="nav">
@@ -43,5 +44,6 @@
     </div>
 
     {% block scripts %}{% endblock %}
+    <script src="{{ url_for('static', filename='js/bg_brains.js') }}"></script>
 </body>
 </html>

@@ -9,6 +9,20 @@ html, body {
     height: 100%;
 }
 
+.bg-anim-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.app-shell {
+    position: relative;
+    z-index: 1;
+}
+
 :root {
     /* Theme inspired by static/images/logo.png (thematic, mid-contrast) */
     --bg0: #d6d0f2;
