@@ -29,6 +29,7 @@ html, body {
     --shadow: 0 22px 60px rgba(15, 23, 42, 0.18);
     --navHeight: 76px;
     --navHeightMobile: 68px;
+    --uiScale: 1.4;
 }
 
 body {
@@ -47,6 +48,9 @@ body {
 .page {
     max-width: 1200px;
     margin: 0 auto;
+    transform: scale(var(--uiScale));
+    transform-origin: top center;
+    width: calc(100% / var(--uiScale));
 }
 
 .nav {
@@ -594,5 +598,11 @@ input[type="checkbox"] {
         flex-direction: column; 
         gap: 12px; 
         text-align: center; 
+    }
+}
+
+@media (max-width: 1100px) {
+    :root {
+        --uiScale: 1.0;
     }
 }
