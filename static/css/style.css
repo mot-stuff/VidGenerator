@@ -74,14 +74,12 @@ body {
 }
 
 .brand-logo {
-    height: 40px;
+    height: 52px;
     width: auto;
-    max-width: 320px;
-    border-radius: 12px;
+    max-width: 420px;
+    border-radius: 10px;
     display: block;
-    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    background: rgba(2, 6, 23, 0.20);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
 .brand-name {
@@ -555,9 +553,9 @@ input[type="checkbox"] {
         padding: 12px;
     }
     .brand-logo {
-        height: 34px;
-        max-width: 220px;
-        border-radius: 12px;
+        height: 44px;
+        max-width: 260px;
+        border-radius: 10px;
     }
     .wizard-stepper {
         flex-direction: column;
