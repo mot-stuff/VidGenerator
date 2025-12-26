@@ -76,9 +76,9 @@ body {
 }
 
 .brand-logo {
-    height: 52px;
+    height: clamp(64px, 6vw, 104px);
     width: auto;
-    max-width: 260px;
+    max-width: clamp(260px, 32vw, 520px);
     border-radius: 0;
     display: block;
     box-shadow: none;
@@ -559,12 +559,12 @@ input[type="checkbox"] {
         padding: 10px;
     }
     .nav {
-        padding: 12px;
+        padding: 5px;
     }
     .brand-logo {
-        height: 69px;
-        width: 330px;
-        max-width: 330px;
+        height: clamp(56px, 9vw, 92px);
+        width: auto;
+        max-width: clamp(220px, 70vw, 420px);
         border-radius: 0;
     }
     .wizard-stepper {
