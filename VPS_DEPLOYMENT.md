@@ -9,7 +9,6 @@ git pull
 sudo systemctl restart tts-generator
 sudo systemctl reload nginx
 
-
 ### Step 1: Create VPS
 1. **Go to [DigitalOcean](https://digitalocean.com)**
 2. **Create Droplet:**
@@ -75,6 +74,8 @@ DATABASE_URL=postgresql://tts_user:your-secure-password@localhost/tts_saas
 FLASK_ENV=production
 ADMIN_EMAILS=tomalty333@gmail.com
 GAM_REWARDED_AD_UNIT_PATH=/1234/main/top
+STRIPE_SECRET_KEY=sk_live_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
 EOF
 
 # Initialize database

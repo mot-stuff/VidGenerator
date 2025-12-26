@@ -10,7 +10,7 @@ import time
 import uuid
 from pathlib import Path
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, after_this_request, send_file
+from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, after_this_request, send_file, abort
 from flask_login import LoginManager, login_required, current_user
 from dotenv import load_dotenv
 
@@ -34,6 +34,8 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-pro
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///tts_saas.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['GAM_REWARDED_AD_UNIT_PATH'] = os.getenv('GAM_REWARDED_AD_UNIT_PATH', '').strip()
+app.config['STRIPE_SECRET_KEY'] = os.getenv('STRIPE_SECRET_KEY', '').strip()
+app.config['STRIPE_WEBHOOK_SECRET'] = os.getenv('STRIPE_WEBHOOK_SECRET', '').strip()
 # No file size limits on VPS
 # app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # Removed for VPS
 
@@ -246,6 +248,50 @@ def shop():
 @login_required
 def support():
     return render_template('support.html')
+
+
+@app.route('/api/stripe/webhook', methods=['POST'])
+def stripe_webhook():
+    webhook_secret = (app.config.get('STRIPE_WEBHOOK_SECRET') or '').strip()
+    if not webhook_secret:
+        abort(404)
+
+    sig_header = request.headers.get('Stripe-Signature', '')
+    payload = request.get_data(as_text=True)
+
+    try:
+        import stripe
+    except Exception:
+        return jsonify({'error': 'Stripe SDK not installed'}), 500
+
+    try:
+        event = stripe.Webhook.construct_event(payload=payload, sig_header=sig_header, secret=webhook_secret)
+    except Exception:
+        return jsonify({'error': 'Invalid signature'}), 400
+
+    event_type = (event.get('type') or '').strip()
+    if event_type == 'checkout.session.completed':
+        session = (event.get('data') or {}).get('object') or {}
+        email = None
+        try:
+            email = (session.get('customer_details') or {}).get('email') or session.get('customer_email')
+        except Exception:
+            email = None
+        email = (email or '').strip().lower() or None
+
+        if email:
+            u = User.query.filter_by(email=email).first()
+            if u:
+                u.subscription_tier = 'pro'
+                try:
+                    db.session.commit()
+                except Exception:
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
+
+    return jsonify({'received': True})
 
 @app.route('/admin', methods=['GET'])
 @login_required

@@ -9,6 +9,7 @@ flask-wtf==1.1.1
 WTForms==3.0.1
 requests==2.31.0
 python-dotenv==1.0.0
+stripe==11.2.0
 
 # Video processing (VPS-compatible versions)
 moviepy==1.0.3
