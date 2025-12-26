@@ -179,6 +179,40 @@ function renderWizard(state) {
   renderTextList(state);
 }
 
+async function validateUploadedVideos(state) {
+  const v1 = state?.videos?.video1 || null;
+  const v2 = state?.videos?.video2 || null;
+  if (!v1 && !v2) return state;
+
+  try {
+    const r = await fetch('/api/validate_uploads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ video1: v1, video2: v2 }),
+    });
+    const parsed = await parseApiResponse(r);
+    if (!parsed.ok || !parsed.data || !parsed.data.success) return state;
+
+    const v1Exists = Boolean(parsed.data.video1_exists);
+    const v2Exists = Boolean(parsed.data.video2_exists);
+
+    if (!v1Exists && state.videos.video1) {
+      state.videos.video1 = null;
+      const info = qs('#video1Info');
+      if (info) info.classList.add('hidden');
+    }
+    if (!v2Exists && state.videos.video2) {
+      state.videos.video2 = null;
+      const info = qs('#video2Info');
+      if (info) info.classList.add('hidden');
+    }
+  } catch {
+    return state;
+  }
+
+  return state;
+}
+
 async function uploadVideo(state, videoType) {
   const input = qs(`#${videoType}`);
   if (!input || !input.files || !input.files[0]) return state;
@@ -393,6 +427,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const generateBtn = qs('#generateBtn');
 
   renderWizard(state);
+
+  validateUploadedVideos(state).then((nextState) => {
+    state = nextState;
+    saveState(state);
+    renderWizard(state);
+  });
 
   if (stepper) {
     stepper.addEventListener('click', (e) => {

@@ -538,6 +538,30 @@ def upload_csv():
     except Exception as e:
         return jsonify({'error': f'Error processing CSV: {e}'}), 400
 
+
+@app.route('/api/validate_uploads', methods=['POST'])
+@login_required
+def validate_uploads():
+    data = request.json or {}
+    video1_id = (data.get('video1') or '').strip()
+    video2_id = (data.get('video2') or '').strip()
+
+    user_upload_dir = get_user_directory(current_user.id, "uploads")
+
+    def exists(file_id: str) -> bool:
+        if not file_id:
+            return False
+        try:
+            return (user_upload_dir / file_id).exists()
+        except Exception:
+            return False
+
+    return jsonify({
+        'success': True,
+        'video1_exists': exists(video1_id),
+        'video2_exists': exists(video2_id),
+    })
+
 @app.route('/api/generate_video', methods=['POST'])
 @login_required
 def generate_video():
