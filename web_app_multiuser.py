@@ -1137,6 +1137,7 @@ def generate_video():
 @login_required
 def get_jobs():
     """Get user's video jobs"""
+    # Keep completed jobs available briefly so users can download (and avoid browser auto-download quirks).
     _cleanup_expired_user_artifacts(current_user.id, ttl_s=120)
     # Query scalar columns (not ORM instances) so we don't crash if a row is deleted mid-request.
     rows = (
@@ -1276,22 +1277,6 @@ def download_result(job_id):
     result_path = Path(job.result_path)
     if not result_path.exists():
         return jsonify({'error': 'Video file not found'}), 404
-
-    @after_this_request
-    def _cleanup(response):
-        try:
-            if not _get_youtube_auto_upload(current_user.id):
-                if result_path.exists():
-                    result_path.unlink()
-        except Exception:
-            pass
-        try:
-            # Remove job record so we don't retain history/storage
-            db.session.delete(job)
-            db.session.commit()
-        except Exception:
-            pass
-        return response
 
     return send_file(result_path, as_attachment=True, download_name=result_path.name)
 
