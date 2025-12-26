@@ -28,6 +28,9 @@ def _get_random_background_music(bg_music_dir: Path | str = "assets/background_m
 
 
 def _get_ffmpeg_exe() -> str:
+    override = (os.getenv("FFMPEG_EXE") or "").strip()
+    if override:
+        return override
     try:
         import imageio_ffmpeg  # type: ignore
 
@@ -37,6 +40,9 @@ def _get_ffmpeg_exe() -> str:
 
 
 def _get_ffprobe_exe() -> str:
+    override = (os.getenv("FFPROBE_EXE") or "").strip()
+    if override:
+        return override
     ffmpeg = _get_ffmpeg_exe()
     if ffmpeg.lower().endswith("ffmpeg.exe"):
         return ffmpeg[:-9] + "ffprobe.exe"
