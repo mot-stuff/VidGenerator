@@ -45,16 +45,20 @@ body {
     color: var(--text);
 }
 
-.page {
-    max-width: 1200px;
-    margin: 0 auto;
+.app-shell {
     transform: scale(var(--uiScale));
     transform-origin: top center;
     width: calc(100% / var(--uiScale));
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.page {
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
 .nav {
-    max-width: 1200px;
     margin: 0 auto 10px auto;
     background:
         radial-gradient(900px 160px at 16% 0%, rgba(255, 95, 174, 0.10), transparent 60%),
