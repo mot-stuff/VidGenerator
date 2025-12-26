@@ -663,13 +663,13 @@ function persistAutoDownloadedJobIds(set) {
 
 let autoDownloadInFlight = false;
 function triggerDownload(url) {
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = '';
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => a.remove(), 1000);
+  // Use an iframe download trigger. In practice this is more reliable than an <a>.click()
+  // for script-initiated downloads behind auth.
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = url;
+  document.body.appendChild(iframe);
+  setTimeout(() => iframe.remove(), 5000);
 }
 
 function maybeAutoDownload(jobs) {

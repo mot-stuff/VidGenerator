@@ -345,12 +345,20 @@ def _cleanup_expired_user_artifacts(user_id: int, ttl_s: int = 120) -> None:
             except Exception:
                 pass
 
-    # Delete old DB job records so they disappear from the UI
+    # Delete old DB job records so they disappear from the UI.
+    # Never delete active jobs (processing/pending) here.
     try:
         jobs = VideoJob.query.filter_by(user_id=user_id).all()
         now_dt = datetime.utcnow()
 
         for job in jobs:
+            try:
+                st = (job.status or "").strip().lower()
+                if st in ("processing", "pending"):
+                    continue
+            except Exception:
+                pass
+
             age_s = None
             try:
                 if job.completed_at:
@@ -1168,7 +1176,7 @@ def get_jobs():
                 "created_at": r[5].isoformat() if r[5] else None,
                 "completed_at": r[6].isoformat() if r[6] else None,
                 "error_message": r[7],
-                "can_download": (r[2] == "completed" and bool(r[8])),
+                "can_download": (r[2] == "completed" and bool(r[8]) and Path(str(r[8])).exists()),
             }
             for r in rows
         ]
