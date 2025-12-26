@@ -129,6 +129,8 @@ class VideoJob(db.Model):
     filename = db.Column(db.String(255), nullable=False)
     text_content = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(50), default='pending')  # pending, processing, completed, failed
+    stage = db.Column(db.String(64))
+    progress = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
     error_message = db.Column(db.Text)

@@ -136,6 +136,36 @@ def _ensure_user_columns() -> None:
         add_col("subscription_tier TEXT DEFAULT 'free'", 'subscription_tier')
         add_col('bonus_credits INTEGER DEFAULT 0', 'bonus_credits')
 
+def _ensure_videojob_columns() -> None:
+    """Ensure new VideoJob columns exist on existing DBs (no migration tool in this repo)."""
+    uri = app.config.get('SQLALCHEMY_DATABASE_URI', '') or ''
+    is_sqlite = uri.startswith('sqlite:')
+
+    with db.engine.begin() as conn:
+        if not is_sqlite:
+            conn.exec_driver_sql('ALTER TABLE video_job ADD COLUMN IF NOT EXISTS stage VARCHAR(64);')
+            conn.exec_driver_sql('ALTER TABLE video_job ADD COLUMN IF NOT EXISTS progress DOUBLE PRECISION DEFAULT 0;')
+            return
+
+        existing: set[str] = set()
+        try:
+            res = conn.exec_driver_sql('PRAGMA table_info(video_job);')
+            for row in res.fetchall():
+                existing.add(row[1])
+        except Exception:
+            return
+
+        def add_col(col_sql: str, col_name: str) -> None:
+            if col_name in existing:
+                return
+            try:
+                conn.exec_driver_sql(f'ALTER TABLE video_job ADD COLUMN {col_sql};')
+            except Exception:
+                pass
+
+        add_col('stage TEXT', 'stage')
+        add_col('progress REAL DEFAULT 0', 'progress')
+
 def _get_client_ip() -> str:
     cf_ip = request.headers.get("CF-Connecting-IP")
     if cf_ip:
@@ -885,17 +915,25 @@ def generate_video():
                 user_id=user_id,
                 filename=job_filename,
                 text_content=text,
-                status='processing'
+                status='processing',
+                stage='starting',
+                progress=0.02,
             )
             db.session.add(job)
             db.session.commit()
 
             try:
+                job.stage = 'tts'
+                job.progress = 0.10
+                db.session.commit()
                 # Generate TTS
                 voice_code = "en_us_002"
                 tts_path = synthesize_tiktok_tts(text=text, voice=voice_code, out_dir=user_temp_dir)
 
                 # Generate captions
+                job.stage = 'captions'
+                job.progress = 0.22
+                db.session.commit()
                 spans = allocate_caption_spans(text=text, total_duration_s=None, audio_path=tts_path)
                 try:
                     words = whisper_word_timestamps(str(tts_path), language="en", original_text=text)
@@ -904,6 +942,9 @@ def generate_video():
                     word_spans = allocate_karaoke_word_spans(text=text, total_duration_s=None, audio_path=tts_path)
 
                 # Generate output
+                job.stage = 'render'
+                job.progress = 0.35
+                db.session.commit()
                 output_filename = f"{job_id}_output.mp4"
                 output_path = user_output_dir / output_filename
 
@@ -935,6 +976,8 @@ def generate_video():
                 job.status = 'completed'
                 job.result_path = str(output_path)
                 job.completed_at = datetime.utcnow()
+                job.stage = 'done'
+                job.progress = 1.0
 
                 # Optional: enqueue for YouTube upload (Pro only, requires uploaded token)
                 try:
@@ -974,6 +1017,7 @@ def generate_video():
 
             except Exception as e:
                 job.status = 'failed'
+                job.stage = 'failed'
                 msg = str(e)
                 low = msg.lower()
                 if "could not be found" in low or "no such file" in low:
@@ -1019,6 +1063,8 @@ def get_jobs():
             VideoJob.id,
             VideoJob.filename,
             VideoJob.status,
+            VideoJob.stage,
+            VideoJob.progress,
             VideoJob.created_at,
             VideoJob.completed_at,
             VideoJob.error_message,
@@ -1035,10 +1081,12 @@ def get_jobs():
                 "id": r[0],
                 "filename": r[1],
                 "status": r[2],
-                "created_at": r[3].isoformat() if r[3] else None,
-                "completed_at": r[4].isoformat() if r[4] else None,
-                "error_message": r[5],
-                "can_download": (r[2] == "completed" and bool(r[6])),
+                "stage": r[3],
+                "progress": float(r[4] or 0.0),
+                "created_at": r[5].isoformat() if r[5] else None,
+                "completed_at": r[6].isoformat() if r[6] else None,
+                "error_message": r[7],
+                "can_download": (r[2] == "completed" and bool(r[8])),
             }
             for r in rows
         ]
@@ -1356,17 +1404,25 @@ def generate_batch():
                         user_id=user_id,
                         filename=f"batch_{i:03d}_{video_file_id}",
                         text_content=text,
-                        status='processing'
+                        status='processing',
+                        stage='starting',
+                        progress=0.02,
                     )
                     db.session.add(job)
                     db.session.commit()
                     
                     try:
                         # Generate TTS
+                        job.stage = 'tts'
+                        job.progress = 0.10
+                        db.session.commit()
                         voice_code = "en_us_002"
                         tts_path = synthesize_tiktok_tts(text=text, voice=voice_code, out_dir=user_temp_dir)
                         
                         # Generate captions
+                        job.stage = 'captions'
+                        job.progress = 0.22
+                        db.session.commit()
                         spans = allocate_caption_spans(text=text, total_duration_s=None, audio_path=tts_path)
                         try:
                             words = whisper_word_timestamps(str(tts_path), language="en", original_text=text)
@@ -1375,6 +1431,9 @@ def generate_batch():
                             word_spans = allocate_karaoke_word_spans(text=text, total_duration_s=None, audio_path=tts_path)
                         
                         # Generate output
+                        job.stage = 'render'
+                        job.progress = 0.35
+                        db.session.commit()
                         output_filename = f"batch_{i:03d}_{job_id}_output.mp4"
                         output_path = user_output_dir / output_filename
                         
@@ -1406,6 +1465,8 @@ def generate_batch():
                         job.status = 'completed'
                         job.result_path = str(output_path)
                         job.completed_at = datetime.utcnow()
+                        job.stage = 'done'
+                        job.progress = 1.0
 
                         # Optional: enqueue for YouTube upload (Pro only, requires uploaded token)
                         try:
@@ -1427,6 +1488,7 @@ def generate_batch():
                             
                     except Exception as e:
                         job.status = 'failed'
+                        job.stage = 'failed'
                         msg = str(e)
                         low = msg.lower()
                         if "could not be found" in low or "no such file" in low:
@@ -1490,6 +1552,7 @@ def init_database():
         with app.app_context():
             db.create_all()
             _ensure_user_columns()
+            _ensure_videojob_columns()
             _sync_admin_emails()
             
             # Create a test user if none exist

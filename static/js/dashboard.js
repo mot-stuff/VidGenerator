@@ -560,6 +560,9 @@ function renderJobs(jobs) {
   fileList.innerHTML = jobs
     .map((job) => {
       const status = job.status || 'unknown';
+      const stage = job.stage ? String(job.stage) : '';
+      const p = Math.max(0, Math.min(1, Number(job.progress ?? 0)));
+      const pct = Math.round(p * 100);
       const created = job.created_at ? new Date(job.created_at).toLocaleString() : '';
       const err = job.error_message ? String(job.error_message) : '';
       const color =
@@ -567,6 +570,15 @@ function renderJobs(jobs) {
       const download = job.can_download
         ? `<a href="/api/download/${job.id}" class="btn btn-secondary wizard-small" download>Download</a>`
         : '';
+      const progressBar =
+        status === 'processing' || status === 'pending'
+          ? `
+            <div class="progress" style="margin-top:8px;">
+              <div class="progress-fill" style="width:${pct}%;"></div>
+            </div>
+            <div class="progress-meta">${pct}%${stage ? ` • ${stage}` : ''}</div>
+          `
+          : '';
       return `
         <div class="file-item">
           <div>
@@ -575,6 +587,7 @@ function renderJobs(jobs) {
               Status: <span style="color:${color}">${status}</span> | Created: ${created}
               ${err ? `<br>Error: ${String(err).replace(/</g, '&lt;').replace(/>/g, '&gt;')}` : ''}
             </div>
+            ${progressBar}
           </div>
           <div>${download}</div>
         </div>
