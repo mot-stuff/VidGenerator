@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import os
 import random
 import string
 from pathlib import Path
@@ -53,6 +54,21 @@ def _chunk_text_for_tiktok(text: str, max_chars: int = 200) -> list[str]:
     return chunks
 
 
+def _get_tiktok_tts_endpoints() -> list[str]:
+    configured = (os.getenv("TIKTOK_TTS_ENDPOINTS") or "").strip()
+    if configured:
+        endpoints = [e.strip() for e in configured.split(",") if e.strip()]
+        if endpoints:
+            return endpoints
+
+    return [
+        "https://api16-normal-c-useast1a.tiktokv.com/media/api/text/speech/invoke/",  # Android-like
+        "https://api16-normal-c-alisg.tiktokv.com/media/api/text/speech/invoke/",  # ALI region
+        "https://tiktok-tts.weilnet.workers.dev/api/generation",  # Cloudflare worker
+        "https://tiktoktts.com/api/generation",  # alt community
+    ]
+
+
 def synthesize_tiktok_tts(text: str, voice: str, out_dir: Path) -> Path:
     """Synthesize speech using TikTok's (unofficial) TTS endpoint.
     
@@ -94,15 +110,10 @@ def _synthesize_single_chunk(text: str, voice: str, out_dir: Path, suffix: str =
     """Synthesize a single chunk of text using TikTok TTS."""
     out_mp3 = out_dir / f"tts_{_random_device_id(8)}{suffix}.mp3"
 
-    # Try a couple of known endpoints. These are unofficial and may break.
-    endpoints = [
-        "https://api16-normal-c-useast1a.tiktokv.com/media/api/text/speech/invoke/",  # Android-like
-        "https://api16-normal-c-alisg.tiktokv.com/media/api/text/speech/invoke/",     # ALI region
-        "https://tiktok-tts.weilnet.workers.dev/api/generation",                      # Cloudflare worker
-        "https://tiktoktts.com/api/generation",                                       # alt community
-    ]
+    endpoints = _get_tiktok_tts_endpoints()
 
     last_error: Exception | None = None
+    errors: list[str] = []
     for url in endpoints:
         try:
             if "tiktokv.com" in url:
@@ -161,9 +172,11 @@ def _synthesize_single_chunk(text: str, voice: str, out_dir: Path, suffix: str =
             return out_mp3
         except Exception as exc:  # noqa: BLE001
             last_error = exc
+            errors.append(f"{url}: {exc}")
             continue
 
-    raise RuntimeError(f"Failed to synthesize TTS via TikTok endpoint(s): {last_error}")
+    details = "; ".join(errors[-4:]) if errors else str(last_error)
+    raise RuntimeError(f"Failed to synthesize TTS via TikTok endpoint(s): {details}")
 
 
 def _concatenate_audio_files(audio_files: list[Path], output_path: Path) -> None:
