@@ -364,6 +364,12 @@ textarea {
     font-weight: 800;
     border-bottom: 2px dotted rgba(15, 23, 42, 0.32);
     cursor: help;
+    letter-spacing: 0.4px;
+    background: linear-gradient(90deg, rgba(255, 95, 174, 0.98), rgba(124, 58, 237, 0.98));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
 }
 
 .brainrot-tooltip {
