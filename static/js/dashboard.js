@@ -342,33 +342,60 @@ async function uploadVideo(state, videoType) {
   if (!input || !input.files || !input.files[0]) return state;
   const file = input.files[0];
 
+  const progressWrap = qs(`#${videoType}UploadProgress`);
+  const progressFill = qs(`#${videoType}UploadProgressFill`);
+  const infoDiv = qs(`#${videoType}Info`);
+
+  if (progressFill) progressFill.style.width = '0%';
+  if (progressWrap) progressWrap.classList.remove('hidden');
+  if (infoDiv) infoDiv.classList.add('hidden');
+
+  updateStatus(`Uploading ${videoType}...`);
+
   const formData = new FormData();
   formData.append('video', file);
   formData.append('type', videoType);
 
-  updateStatus(`Uploading ${videoType}...`);
+  const result = await new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload_video', true);
 
-  const response = await fetch('/api/upload_video', { method: 'POST', body: formData });
-  const parsed = await parseApiResponse(response);
+    xhr.upload.onprogress = (evt) => {
+      if (!evt.lengthComputable) return;
+      const pct = Math.max(0, Math.min(100, Math.round((evt.loaded / evt.total) * 100)));
+      if (progressFill) progressFill.style.width = `${pct}%`;
+    };
 
-  if (!parsed.ok || !parsed.data || !parsed.data.success) {
-    const msg =
-      parsed.data && parsed.data.error
-        ? parsed.data.error
-        : parsed.raw
-          ? parsed.raw.slice(0, 200)
-          : 'No response body';
-    updateStatus(`Upload failed (${parsed.status}): ${msg}`, true);
+    xhr.onload = () => {
+      let data = null;
+      try {
+        data = JSON.parse(xhr.responseText || '{}');
+      } catch {
+        data = null;
+      }
+      resolve({ status: xhr.status, ok: xhr.status >= 200 && xhr.status < 300, data, raw: xhr.responseText || '' });
+    };
+
+    xhr.onerror = () => resolve({ status: 0, ok: false, data: null, raw: '' });
+    xhr.send(formData);
+  });
+
+  if (!result.ok || !result.data || !result.data.success) {
+    const msg = result.data && result.data.error ? result.data.error : result.raw ? result.raw.slice(0, 200) : 'No response body';
+    updateStatus(`Upload failed (${result.status}): ${msg}`, true);
+    if (progressWrap) progressWrap.classList.add('hidden');
     return state;
   }
 
-  const infoDiv = qs(`#${videoType}Info`);
+  if (progressFill) progressFill.style.width = '100%';
+  if (progressWrap) setTimeout(() => progressWrap.classList.add('hidden'), 350);
+
   if (infoDiv) {
     infoDiv.textContent = `✅ ${file.name}`;
     infoDiv.classList.remove('hidden');
   }
 
-  state.videos[videoType] = parsed.data.file_id;
+  state.videos[videoType] = result.data.file_id;
   updateStatus(`✅ ${videoType} uploaded`);
   return state;
 }

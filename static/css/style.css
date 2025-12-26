@@ -495,6 +495,28 @@ input[type="checkbox"] {
     display: none; 
 }
 
+.progress {
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.10);
+    border: 1px solid rgba(15, 23, 42, 0.18);
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, rgba(56, 189, 248, 0.92), rgba(124, 58, 237, 0.92));
+    transition: width 120ms linear;
+}
+
+.progress-meta {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted2);
+}
+
 .file-list {
     max-height: 140px; 
     overflow-y: auto; 
