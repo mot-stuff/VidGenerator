@@ -1,35 +1,11 @@
 from __future__ import annotations
 
+import os
 import random
+import subprocess
+import uuid
 from pathlib import Path
 from typing import List, Dict, Sequence
-
-# Pillow compatibility shim for MoviePy with Pillow >= 10
-try:  # pragma: no cover - tiny runtime shim
-    from PIL import Image as _PILImage
-
-    if not hasattr(_PILImage, "ANTIALIAS"):
-        try:
-            # Pillow 10+ uses Resampling enum
-            if hasattr(_PILImage, "Resampling"):
-                _PILImage.ANTIALIAS = _PILImage.Resampling.LANCZOS  # type: ignore[attr-defined]
-                _PILImage.BICUBIC = _PILImage.Resampling.BICUBIC  # type: ignore[attr-defined]
-                _PILImage.BILINEAR = _PILImage.Resampling.BILINEAR  # type: ignore[attr-defined]
-            else:
-                _PILImage.ANTIALIAS = _PILImage.LANCZOS  # type: ignore[attr-defined]
-        except Exception:  # noqa: BLE001
-            pass
-except Exception:  # noqa: BLE001
-    pass
-
-from moviepy.editor import (
-    VideoFileClip,
-    AudioFileClip,
-    CompositeVideoClip,
-    ImageClip,
-    CompositeAudioClip,
-)
-from moviepy.video.fx import all as vfx
 
 
 def _get_random_background_music(bg_music_dir: Path | str = "assets/background_music") -> Path | None:
@@ -51,9 +27,295 @@ def _get_random_background_music(bg_music_dir: Path | str = "assets/background_m
     return random.choice(audio_files)
 
 
+def _get_ffmpeg_exe() -> str:
+    try:
+        import imageio_ffmpeg  # type: ignore
+
+        return str(imageio_ffmpeg.get_ffmpeg_exe())
+    except Exception:
+        return "ffmpeg"
+
+
+def _get_ffprobe_exe() -> str:
+    ffmpeg = _get_ffmpeg_exe()
+    if ffmpeg.lower().endswith("ffmpeg.exe"):
+        return ffmpeg[:-9] + "ffprobe.exe"
+    if ffmpeg.lower().endswith("/ffmpeg"):
+        return ffmpeg[:-6] + "/ffprobe"
+    return "ffprobe"
+
+
+def _probe_duration_seconds(media_path: Path | str) -> float | None:
+    p = Path(media_path)
+    if not p.exists():
+        return None
+    try:
+        exe = _get_ffprobe_exe()
+        r = subprocess.run(
+            [
+                exe,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=nw=1:nk=1",
+                str(p),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if r.returncode != 0:
+            return None
+        s = (r.stdout or "").strip()
+        if not s:
+            return None
+        return float(s)
+    except Exception:
+        return None
+
+
+def _ass_time(t: float) -> str:
+    t = max(0.0, float(t))
+    h = int(t // 3600)
+    m = int((t % 3600) // 60)
+    s = int(t % 60)
+    cs = int(round((t - int(t)) * 100.0))
+    if cs >= 100:
+        cs = 99
+    return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+
+
+def _ass_escape_text(s: str) -> str:
+    s = (s or "").replace("\r\n", "\n").replace("\r", "\n")
+    s = s.replace("\\", r"\\")
+    s = s.replace("{", r"\{").replace("}", r"\}")
+    s = s.replace("\n", r"\N")
+    return s
+
+
+def _write_ass_subtitles(
+    ass_path: Path,
+    caption_spans: List[Dict[str, float | str]] | None,
+    karaoke_word_spans: Sequence[Dict[str, float | str | int]] | None,
+    width: int,
+    height: int,
+) -> bool:
+    caption_spans = caption_spans or []
+    karaoke_word_spans = karaoke_word_spans or []
+    if not caption_spans and not karaoke_word_spans:
+        return False
+
+    caption_x = int(width * 0.5)
+    caption_y = int(height * 0.78)
+    center_x = int(width * 0.5)
+    center_y = int(height * 0.5)
+
+    font_size_caption = max(28, int(height * 0.035))
+    font_size_karaoke = max(28, int(height * 0.040))
+
+    header = "\n".join(
+        [
+            "[Script Info]",
+            "ScriptType: v4.00+",
+            f"PlayResX: {width}",
+            f"PlayResY: {height}",
+            "ScaledBorderAndShadow: yes",
+            "",
+            "[V4+ Styles]",
+            "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+            f"Style: Default,Arial,{font_size_caption},&H00FFFFFF,&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,4,0,5,10,10,10,1",
+            f"Style: Karaoke,Arial,{font_size_karaoke},&H00FFFFFF,&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,4,0,5,10,10,10,1",
+            "",
+            "[Events]",
+            "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+        ]
+    )
+
+    lines: list[str] = [header]
+    if karaoke_word_spans:
+        for w in karaoke_word_spans:
+            start = float(w["start"])  # type: ignore[arg-type]
+            end = float(w["end"])  # type: ignore[arg-type]
+            txt = _ass_escape_text(str(w.get("text", "")).strip())
+            if not txt:
+                continue
+            tag = rf"{{\an5\pos({center_x},{center_y})\fs{font_size_karaoke}\bord4\shad0}}"
+            lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Karaoke,,0,0,0,,{tag}{txt}")
+    else:
+        for span in caption_spans:
+            start = float(span["start"])  # type: ignore[arg-type]
+            end = float(span["end"])  # type: ignore[arg-type]
+            txt = _ass_escape_text(str(span.get("text", "")).strip())
+            if not txt:
+                continue
+            tag = rf"{{\an5\pos({caption_x},{caption_y})\fs{font_size_caption}\bord4\shad0}}"
+            lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{tag}{txt}")
+
+    ass_path.parent.mkdir(parents=True, exist_ok=True)
+    ass_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return True
+
+
+def _ffmpeg_filter_escape_path(p: Path) -> str:
+    s = str(p).replace("\\", "/")
+    s = s.replace(":", r"\:")
+    s = s.replace("'", r"\'")
+    return s
+
+
+def _compose_video_with_tts_ffmpeg(
+    video_path: Path | str,
+    tts_audio_path: Path | str,
+    caption_spans: List[Dict[str, float | str]],
+    output_path: Path | str,
+    chosen_start_time: float | None,
+    crf: int,
+    encode_preset: str,
+    video_bitrate: str | None,
+    karaoke_word_spans: Sequence[Dict[str, float | str | int]] | None,
+    add_background_music: bool,
+    bg_music_volume: float,
+    bg_music_dir: Path | str,
+    bg_music_path: Path | str | None,
+    split_screen_enabled: bool,
+    video_path2: Path | str | None,
+    tail_padding_s: float,
+    out_width: int = 1080,
+    out_height: int = 1920,
+    fps_out: int = 30,
+) -> Path:
+    video_path = Path(video_path)
+    tts_audio_path = Path(tts_audio_path)
+    out_path = Path(output_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    tts_dur = _probe_duration_seconds(tts_audio_path)
+    if tts_dur is None:
+        raise RuntimeError("Failed to probe TTS audio duration (ffprobe missing?)")
+    duration = float(tts_dur) + max(0.0, float(tail_padding_s or 0.0))
+    duration = max(0.01, duration)
+
+    if chosen_start_time is not None:
+        start_time1 = max(0.0, float(chosen_start_time))
+    else:
+        v1_dur = _probe_duration_seconds(video_path)
+        if v1_dur and v1_dur > 1.0:
+            start_time1 = random.uniform(0.0, max(0.0, float(v1_dur) - 1.0))
+        else:
+            start_time1 = 0.0
+
+    start_time2 = 0.0
+    if split_screen_enabled and video_path2:
+        v2 = Path(video_path2)
+        v2_dur = _probe_duration_seconds(v2)
+        if v2_dur and v2_dur > 1.0:
+            start_time2 = random.uniform(0.0, max(0.0, float(v2_dur) - 1.0))
+
+    chosen_bg: Path | None = None
+    if add_background_music:
+        chosen_bg = Path(bg_music_path) if bg_music_path else _get_random_background_music(bg_music_dir)
+
+    ass_path = out_path.parent / f"subs_{uuid.uuid4().hex}.ass"
+    has_subs = _write_ass_subtitles(
+        ass_path=ass_path,
+        caption_spans=caption_spans,
+        karaoke_word_spans=karaoke_word_spans,
+        width=out_width,
+        height=out_height,
+    )
+
+    ffmpeg = _get_ffmpeg_exe()
+
+    cmd: list[str] = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error"]
+
+    cmd += ["-stream_loop", "-1", "-i", str(video_path)]
+    idx_video2 = None
+    if split_screen_enabled and video_path2:
+        idx_video2 = 1
+        cmd += ["-stream_loop", "-1", "-i", str(video_path2)]
+
+    idx_tts = 1 if idx_video2 is None else 2
+    cmd += ["-i", str(tts_audio_path)]
+
+    idx_bg = None
+    if chosen_bg and chosen_bg.exists():
+        idx_bg = idx_tts + 1
+        cmd += ["-stream_loop", "-1", "-i", str(chosen_bg)]
+
+    def v_chain(input_label: str, start: float) -> str:
+        return (
+            f"{input_label}trim=start={start}:duration={duration},setpts=PTS-STARTPTS,"
+            f"scale={out_width}:{out_height}:force_original_aspect_ratio=increase,"
+            f"crop={out_width}:{out_height},fps={fps_out}"
+        )
+
+    vf_parts: list[str] = []
+    if idx_video2 is not None:
+        vf_parts.append(v_chain("[0:v]", start_time1) + "[v1]")
+        vf_parts.append(v_chain("[1:v]", start_time2) + "[v2]")
+        vf_parts.append("[v1]crop=iw:ih*3/4:0:ih*1/4,scale=%d:%d[top]" % (out_width, out_height // 2))
+        vf_parts.append("[v2]crop=iw:ih*3/4:0:ih*1/4,scale=%d:%d[bot]" % (out_width, out_height // 2))
+        vf_parts.append("[top][bot]vstack=inputs=2[vbase]")
+    else:
+        vf_parts.append(v_chain("[0:v]", start_time1) + "[vbase]")
+
+    if float(tail_padding_s or 0.0) > 0:
+        vf_parts.append(f"[vbase]tpad=stop_mode=clone:stop_duration={float(tail_padding_s)}[vpad]")
+        v_in = "[vpad]"
+    else:
+        v_in = "[vbase]"
+
+    if has_subs:
+        subs_esc = _ffmpeg_filter_escape_path(ass_path)
+        vf_parts.append(f"{v_in}subtitles='{subs_esc}'[vout]")
+    else:
+        vf_parts.append(f"{v_in}null[vout]")
+
+    af_parts: list[str] = []
+    tail = max(0.0, float(tail_padding_s or 0.0))
+    af_parts.append(f"[{idx_tts}:a]apad=pad_dur={tail},atrim=0:{duration},asetpts=N/SR/TB[atts]")
+    if idx_bg is not None:
+        af_parts.append(f"[{idx_bg}:a]atrim=0:{duration},asetpts=N/SR/TB,volume={float(bg_music_volume)}[abg]")
+        af_parts.append("[atts][abg]amix=inputs=2:duration=longest:dropout_transition=0[aout]")
+    else:
+        af_parts.append("[atts]anull[aout]")
+
+    filter_complex = ";".join([*vf_parts, *af_parts])
+
+    cmd += ["-filter_complex", filter_complex]
+    cmd += ["-map", "[vout]", "-map", "[aout]"]
+    cmd += ["-c:v", "libx264", "-preset", str(encode_preset or "faster"), "-crf", str(int(crf))]
+    if video_bitrate:
+        cmd += ["-b:v", str(video_bitrate)]
+    cmd += ["-pix_fmt", "yuv420p", "-profile:v", "high", "-movflags", "+faststart"]
+    cmd += ["-c:a", "aac", "-b:a", "192k"]
+
+    threads = max(1, min(8, int(os.cpu_count() or 1)))
+    cmd += ["-threads", str(threads)]
+    cmd += [str(out_path)]
+
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if r.returncode != 0:
+            raise RuntimeError((r.stderr or r.stdout or "ffmpeg failed").strip())
+        if not out_path.exists() or out_path.stat().st_size <= 0:
+            raise RuntimeError("ffmpeg completed but output file is missing/empty")
+        return out_path
+    finally:
+        if has_subs:
+            try:
+                ass_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+
 def _choose_random_subclip_for_duration(
     video: VideoFileClip, duration: float, start_time: float | None = None
 ) -> VideoFileClip:
+    from moviepy.video.fx import all as vfx
+
     if video.duration <= 0:
         raise ValueError("Video has zero duration")
     if duration <= 0:
@@ -81,6 +343,7 @@ def _render_captions_layers(
 ) -> List[ImageClip]:
     import numpy as np
     from PIL import Image, ImageDraw, ImageFont
+    from moviepy.editor import ImageClip
 
     def _find_font(size: int) -> ImageFont.FreeTypeFont:
         # Prefer project/local or system fonts if available, else PIL packaged font, else default
@@ -182,6 +445,7 @@ def _render_karaoke_overlay(
     """
     import numpy as np
     from PIL import Image, ImageDraw, ImageFont
+    from moviepy.editor import ImageClip
 
     def _find_font(size: int) -> ImageFont.FreeTypeFont:
         candidates = [
@@ -275,6 +539,8 @@ def _ensure_vertical_9_16(
     def to_even(x: int) -> int:
         return x if x % 2 == 0 else x - 1
 
+    from moviepy.video.fx import all as vfx
+
     width, height = clip.size
     target_ratio = 9 / 16  # 0.5625
     current_ratio = width / height
@@ -316,6 +582,9 @@ def _create_split_screen_horizontal(
     """
     def to_even(x: int) -> int:
         return x if x % 2 == 0 else x - 1
+
+    from moviepy.editor import CompositeVideoClip
+    from moviepy.video.fx import all as vfx
     
     # Get subclips and crop to 9:16
     sub1 = _choose_random_subclip_for_duration(clip1, duration, start_time=chosen_start_time1)
@@ -344,7 +613,7 @@ def _create_split_screen_horizontal(
     return CompositeVideoClip([top_half, bottom_half], size=(width, height)).set_duration(duration)
 
 
-def compose_video_with_tts(
+def _compose_video_with_tts_moviepy(
     video_path: Path | str,
     tts_audio_path: Path | str,
     caption_spans: List[Dict[str, float | str]],
@@ -364,29 +633,49 @@ def compose_video_with_tts(
     video_path2: Path | str | None = None,
     tail_padding_s: float = 0.0,
 ) -> Path:
+    # Pillow compatibility shim for MoviePy with Pillow >= 10
+    try:  # pragma: no cover - tiny runtime shim
+        from PIL import Image as _PILImage
+
+        if not hasattr(_PILImage, "ANTIALIAS"):
+            try:
+                if hasattr(_PILImage, "Resampling"):
+                    _PILImage.ANTIALIAS = _PILImage.Resampling.LANCZOS  # type: ignore[attr-defined]
+                    _PILImage.BICUBIC = _PILImage.Resampling.BICUBIC  # type: ignore[attr-defined]
+                    _PILImage.BILINEAR = _PILImage.Resampling.BILINEAR  # type: ignore[attr-defined]
+                else:
+                    _PILImage.ANTIALIAS = _PILImage.LANCZOS  # type: ignore[attr-defined]
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    from moviepy.editor import (
+        VideoFileClip,
+        AudioFileClip,
+        CompositeVideoClip,
+        CompositeAudioClip,
+    )
+
     audio = AudioFileClip(str(tts_audio_path))
     duration = float(audio.duration) + max(0.0, float(tail_padding_s))
 
-    # Store video clips for cleanup later
     source_clips = []
-    
+
     if split_screen_enabled and video_path2:
-        # Create split screen with two videos
         video1 = VideoFileClip(str(video_path))
         video2 = VideoFileClip(str(video_path2))
         source_clips.extend([video1, video2])
-        
-        # Generate random start times for both videos
+
         start_time1 = chosen_start_time if chosen_start_time is not None else random.uniform(0.0, max(0.0, video1.duration - 1.0))
         start_time2 = random.uniform(0.0, max(0.0, video2.duration - 1.0))
-        
+
         base = _create_split_screen_horizontal(video1, video2, duration, start_time1, start_time2)
         width, height = base.size
     else:
-        # Single video mode
         video = VideoFileClip(str(video_path))
         source_clips.append(video)
-        
+
         base = _choose_random_subclip_for_duration(video, duration, start_time=chosen_start_time)
         base = _ensure_vertical_9_16(base)
         width, height = base.size
@@ -395,38 +684,32 @@ def compose_video_with_tts(
         caption_layers = _render_karaoke_overlay(width, height, karaoke_word_spans)
     else:
         caption_layers = _render_captions_layers(width, height, caption_spans)
-    # Round duration down to nearest frame to avoid requesting samples past clip duration
+
     fps_out = base.fps or 30
     duration = (int(duration * fps_out)) / fps_out
     duration = max(0.01, duration)
-    
-    # Prepare final audio (TTS + optional background music)
+
     final_audio = audio
     if add_background_music:
         chosen_bg = Path(bg_music_path) if bg_music_path else _get_random_background_music(bg_music_dir)
         if chosen_bg:
             try:
                 bg_music = AudioFileClip(str(chosen_bg))
-                # Choose random start time in background music
                 if bg_music.duration > duration:
                     max_start = bg_music.duration - duration
                     bg_start = random.uniform(0.0, max_start)
                     bg_music = bg_music.subclip(bg_start, bg_start + duration)
                 else:
-                    # Loop background music if it's shorter than needed
                     from moviepy.audio.fx import all as afx
+
                     bg_music = afx.audio_loop(bg_music, duration=duration)
-                
-                # Reduce background music volume and mix with TTS
+
                 bg_music = bg_music.volumex(bg_music_volume)
                 final_audio = CompositeAudioClip([audio, bg_music])
                 bg_music.close()
             except Exception:
-                # If background music fails to load, just use TTS audio
                 pass
 
-    # Ensure audio covers the full target duration (esp. when tail_padding_s > 0)
-    # MoviePy can throw if it tries to read slightly past the end of an audio clip.
     try:
         from moviepy.audio.AudioClip import AudioClip
 
@@ -437,7 +720,7 @@ def compose_video_with_tts(
             final_audio = final_audio.set_duration(duration)
         except Exception:
             pass
-    
+
     final = (
         CompositeVideoClip([base, *caption_layers], size=(width, height))
         .set_audio(final_audio)
@@ -447,14 +730,9 @@ def compose_video_with_tts(
     out_path = Path(output_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        # Suppress MoviePy's stdout/stderr to prevent harmless logging errors
-        import os
-        import sys
         from contextlib import redirect_stderr, redirect_stdout
-        
-        # Create a null device to redirect output
-        devnull = open(os.devnull, 'w')
-        
+
+        devnull = open(os.devnull, "w")
         try:
             threads = max(1, min(8, int(os.cpu_count() or 1)))
             with redirect_stdout(devnull), redirect_stderr(devnull):
@@ -467,32 +745,31 @@ def compose_video_with_tts(
                     fps=fps_out,
                     bitrate=video_bitrate,
                     ffmpeg_params=[
-                        "-crf", str(crf),
-                        "-pix_fmt", "yuv420p",
-                        "-profile:v", "high",
-                        "-movflags", "+faststart",
+                        "-crf",
+                        str(crf),
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-profile:v",
+                        "high",
+                        "-movflags",
+                        "+faststart",
                     ],
-                    verbose=False,    # Reduce verbose output
-                    logger=None,      # Disable logging to prevent potential deadlocks
-                    write_logfile=False,  # Prevent log file issues
+                    verbose=False,
+                    logger=None,
+                    write_logfile=False,
                 )
         finally:
             devnull.close()
-            
     except Exception as e:
-        # If write fails, clean up partial files and re-raise
         if out_path.exists():
             try:
                 out_path.unlink()
             except Exception:
                 pass
-        # Don't re-raise stdout/stderr related errors if video was actually created
         if out_path.exists() and out_path.stat().st_size > 0:
-            # Video was created successfully despite the error
             pass
         else:
             raise e
-    # Clean up all resources properly
     try:
         audio.close()
     except Exception:
@@ -501,7 +778,6 @@ def compose_video_with_tts(
         base.close()
     except Exception:
         pass
-    # Clean up source video clips
     for clip in source_clips:
         try:
             clip.close()
@@ -516,12 +792,99 @@ def compose_video_with_tts(
         final.close()
     except Exception:
         pass
-    
-    # Force garbage collection to free memory
-    import gc
-    gc.collect()
-    
+    try:
+        import gc
+
+        gc.collect()
+    except Exception:
+        pass
+
     return out_path
+
+
+def compose_video_with_tts(
+    video_path: Path | str,
+    tts_audio_path: Path | str,
+    caption_spans: List[Dict[str, float | str]],
+    output_path: Path | str,
+    min_duration_s: float | None = None,
+    max_duration_s: float | None = None,
+    chosen_start_time: float | None = None,
+    crf: int = 15,
+    encode_preset: str = "faster",
+    video_bitrate: str | None = None,
+    karaoke_word_spans: Sequence[Dict[str, float | str | int]] | None = None,
+    add_background_music: bool = True,
+    bg_music_volume: float = 0.10,
+    bg_music_dir: Path | str = "bg music",
+    bg_music_path: Path | str | None = None,
+    split_screen_enabled: bool = False,
+    video_path2: Path | str | None = None,
+    tail_padding_s: float = 0.0,
+    renderer: str = "ffmpeg",
+) -> Path:
+    r = (renderer or "").strip().lower()
+    if r in ("moviepy", "python"):
+        return _compose_video_with_tts_moviepy(
+            video_path=video_path,
+            tts_audio_path=tts_audio_path,
+            caption_spans=caption_spans,
+            output_path=output_path,
+            min_duration_s=min_duration_s,
+            max_duration_s=max_duration_s,
+            chosen_start_time=chosen_start_time,
+            crf=crf,
+            encode_preset=encode_preset,
+            video_bitrate=video_bitrate,
+            karaoke_word_spans=karaoke_word_spans,
+            add_background_music=add_background_music,
+            bg_music_volume=bg_music_volume,
+            bg_music_dir=bg_music_dir,
+            bg_music_path=bg_music_path,
+            split_screen_enabled=split_screen_enabled,
+            video_path2=video_path2,
+            tail_padding_s=tail_padding_s,
+        )
+    try:
+        return _compose_video_with_tts_ffmpeg(
+            video_path=video_path,
+            tts_audio_path=tts_audio_path,
+            caption_spans=caption_spans,
+            output_path=output_path,
+            chosen_start_time=chosen_start_time,
+            crf=crf,
+            encode_preset=encode_preset,
+            video_bitrate=video_bitrate,
+            karaoke_word_spans=karaoke_word_spans,
+            add_background_music=add_background_music,
+            bg_music_volume=bg_music_volume,
+            bg_music_dir=bg_music_dir,
+            bg_music_path=bg_music_path,
+            split_screen_enabled=split_screen_enabled,
+            video_path2=video_path2,
+            tail_padding_s=tail_padding_s,
+        )
+    except Exception:
+        return _compose_video_with_tts_moviepy(
+            video_path=video_path,
+            tts_audio_path=tts_audio_path,
+            caption_spans=caption_spans,
+            output_path=output_path,
+            min_duration_s=min_duration_s,
+            max_duration_s=max_duration_s,
+            chosen_start_time=chosen_start_time,
+            crf=crf,
+            encode_preset=encode_preset,
+            video_bitrate=video_bitrate,
+            karaoke_word_spans=karaoke_word_spans,
+            add_background_music=add_background_music,
+            bg_music_volume=bg_music_volume,
+            bg_music_dir=bg_music_dir,
+            bg_music_path=bg_music_path,
+            split_screen_enabled=split_screen_enabled,
+            video_path2=video_path2,
+            tail_padding_s=tail_padding_s,
+        )
 
 
 

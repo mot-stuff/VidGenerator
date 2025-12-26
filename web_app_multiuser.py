@@ -42,6 +42,9 @@ app.config['PRESET_VIDEO1_PATH'] = os.getenv('PRESET_VIDEO1_PATH', '').strip()
 app.config['PRESET_VIDEO2_PATH'] = os.getenv('PRESET_VIDEO2_PATH', '').strip()
 app.config['PRESET_SOAP_CUTTING_PATH'] = os.getenv('PRESET_SOAP_CUTTING_PATH', '').strip()
 
+# Video rendering backend: "ffmpeg" (fast) or "moviepy" (legacy)
+VIDEO_RENDERER = (os.getenv("VIDEO_RENDERER") or "ffmpeg").strip().lower()
+
 # Convenience default for local/dev: if user dropped a preset into static/video/preset_parkour.mp4
 # and PRESET_VIDEO1_PATH isn't set, use it automatically.
 if not app.config['PRESET_VIDEO1_PATH']:
@@ -1071,18 +1074,12 @@ def generate_video():
                 output_filename = f"{job_id}_output.mp4"
                 output_path = user_output_dir / output_filename
 
-                import random
-                from moviepy.editor import VideoFileClip
-                with VideoFileClip(str(video_path)) as video_clip:
-                    video_duration = video_clip.duration
-                random_start = random.uniform(0.0, max(0.0, video_duration - 1.0))
-
                 compose_video_with_tts(
                     video_path=str(video_path),
                     tts_audio_path=tts_path,
                     caption_spans=spans,
                     output_path=output_path,
-                    chosen_start_time=random_start,
+                    chosen_start_time=None,
                     crf=crf,
                     encode_preset=encode_preset,
                     video_bitrate=None,
@@ -1094,6 +1091,7 @@ def generate_video():
                     split_screen_enabled=split_screen_enabled,
                     video_path2=str(video2_path) if video2_path else None,
                     tail_padding_s=3.0,
+                    renderer=VIDEO_RENDERER,
                 )
 
                 # Update job status
@@ -1820,18 +1818,12 @@ def generate_batch():
                         output_filename = f"batch_{i:03d}_{job_id}_output.mp4"
                         output_path = user_output_dir / output_filename
                         
-                        import random
-                        from moviepy.editor import VideoFileClip
-                        with VideoFileClip(str(video_path)) as video_clip:
-                            video_duration = video_clip.duration
-                        random_start = random.uniform(0.0, max(0.0, video_duration - 1.0))
-                        
                         compose_video_with_tts(
                             video_path=str(video_path),
                             tts_audio_path=tts_path,
                             caption_spans=spans,
                             output_path=output_path,
-                            chosen_start_time=random_start,
+                            chosen_start_time=None,
                             crf=crf,
                             encode_preset=encode_preset,
                             video_bitrate=None,
@@ -1843,6 +1835,7 @@ def generate_batch():
                             split_screen_enabled=split_screen_enabled,
                             video_path2=str(video2_path) if video2_path else None,
                             tail_padding_s=3.0,
+                            renderer=VIDEO_RENDERER,
                         )
                         
                         # Update job status
