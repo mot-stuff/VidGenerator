@@ -1286,6 +1286,35 @@ def download_result(job_id):
     if not result_path.exists():
         return jsonify({'error': 'Video file not found'}), 404
 
+    delete_after = (request.args.get("delete") or "").strip() in ("1", "true", "yes")
+
+    @after_this_request
+    def _cleanup(response):
+        if not delete_after:
+            return response
+
+        # If auto-upload is enabled, keep the output around (it may still be needed for upload).
+        try:
+            if _get_youtube_auto_upload(current_user.id):
+                return response
+        except Exception:
+            pass
+
+        try:
+            if result_path.exists():
+                result_path.unlink()
+        except Exception:
+            pass
+        try:
+            db.session.delete(job)
+            db.session.commit()
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+        return response
+
     return send_file(result_path, as_attachment=True, download_name=result_path.name)
 
 

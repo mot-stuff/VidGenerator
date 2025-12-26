@@ -568,7 +568,7 @@ function renderJobs(jobs) {
       const color =
         status === 'completed' ? '#16a34a' : status === 'failed' ? '#dc2626' : status === 'processing' ? '#2563eb' : '#ca8a04';
       const download = job.can_download
-        ? `<a href="/api/download/${job.id}" class="btn btn-secondary wizard-small" download>Download</a>`
+        ? `<a href="/api/download/${job.id}?delete=1" class="btn btn-secondary wizard-small" download>Download</a>`
         : '';
       const cancel =
         status === 'processing' || status === 'pending'
