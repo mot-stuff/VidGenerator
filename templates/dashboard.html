@@ -22,10 +22,14 @@
                 </div>
             </div>
             <div class="wizard-hint">
-                Quota resets daily (UTC). Admin accounts ignore daily quota.
+                Quota resets daily (UTC).
             </div>
         </div>
+    </div>
+    {% endcall %}
 
+    {% call collapsible('Brain Blender', open=False) %}
+    <div class="content">
         <div class="section">
             <h2>About</h2>
             <div class="wizard-hint">
@@ -36,11 +40,7 @@
                 Downloads auto-expire, so grab completed jobs quickly.
             </div>
         </div>
-    </div>
-    {% endcall %}
 
-    {% call collapsible('Brain Blender', open=False) %}
-    <div class="content">
         <div class="wizard-stepper" id="wizardStepper">
             <button class="wizard-step" type="button" data-step="1">1. Text</button>
             <button class="wizard-step" type="button" data-step="2">2. Video</button>

@@ -159,10 +159,15 @@ body {
         radial-gradient(1000px 260px at 82% 0%, rgba(124, 58, 237, 0.14), transparent 62%),
         linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.82));
     color: var(--text);
+    list-style: none;
 }
 
 .collapsible-summary::-webkit-details-marker {
     display: none;
+}
+
+.collapsible-summary::marker {
+    content: "";
 }
 
 .collapsible-summary-left {
