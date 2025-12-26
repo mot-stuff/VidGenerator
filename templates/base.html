@@ -5,95 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}TTS Shorts Generator{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        .auth-container {
-            max-width: 400px;
-            margin: 50px auto;
-            padding: 2rem;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .form-group {
-            margin-bottom: 1rem;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: bold;
-        }
-        .form-group input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 1rem;
-        }
-        .btn {
-            background: #007bff;
-            color: white;
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1rem;
-            text-decoration: none;
-            display: inline-block;
-            text-align: center;
-        }
-        .btn:hover {
-            background: #0056b3;
-        }
-        .btn-logout {
-            background: #dc3545;
-            margin-left: 1rem;
-        }
-        .btn-logout:hover {
-            background: #c82333;
-        }
-        .nav {
-            background: #f8f9fa;
-            padding: 1rem;
-            border-bottom: 1px solid #ddd;
-        }
-        .nav .user-info {
-            float: right;
-        }
-        .nav .logo {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #007bff;
-        }
-        .quota-info {
-            background: #f8f9fa;
-            padding: 1rem;
-            border-radius: 5px;
-            margin-bottom: 1rem;
-        }
-        .quota-bar {
-            background: #e9ecef;
-            height: 20px;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-top: 0.5rem;
-        }
-        .quota-fill {
-            background: #007bff;
-            height: 100%;
-            transition: width 0.3s ease;
-        }
-        .quota-fill.warning {
-            background: #ffc107;
-        }
-        .quota-fill.danger {
-            background: #dc3545;
-        }
-        .user-stats {
-            font-size: 0.9rem;
-            color: #6b7280;
-            margin-top: 0.5rem;
-        }
-    </style>
 </head>
 <body>
     {% if current_user.is_authenticated %}
@@ -101,17 +12,16 @@
         <div class="logo">🎬 TTS Shorts Generator</div>
         <div class="user-info">
             Welcome, {{ current_user.email }}
-            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="margin-left: 1rem;">Home</a>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Home</a>
             {% if current_user.is_admin %}
-            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary" style="margin-left: 1rem;">Admin</a>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Admin</a>
             {% endif %}
             <a href="{{ url_for('auth.logout') }}" class="btn btn-logout">Logout</a>
         </div>
-        <div style="clear: both;"></div>
     </nav>
     {% endif %}
 
-    <div class="container">
+    <main class="page">
         {% with messages = get_flashed_messages() %}
             {% if messages %}
                 <div class="alert alert-info">
@@ -123,7 +33,7 @@
         {% endwith %}
 
         {% block content %}{% endblock %}
-    </div>
+    </main>
 
     {% block scripts %}{% endblock %}
 </body>
