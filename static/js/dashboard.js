@@ -634,7 +634,7 @@ let lastJobsData = [];
 
 function isAutoDownloadEnabled() {
   const raw = sessionStorage.getItem('autoDownloadEnabled');
-  if (raw === null) return true;
+  if (raw === null) return false;
   return raw === '1';
 }
 
@@ -883,7 +883,10 @@ document.addEventListener('DOMContentLoaded', () => {
   bindJobsClickHandlers();
 
   if (autoDownloadToggle) {
-    autoDownloadToggle.checked = isAutoDownloadEnabled();
+    // Always start disabled on page load. Browsers typically require a user gesture
+    // for downloads; restoring "enabled" automatically makes it feel broken.
+    setAutoDownloadEnabled(false);
+    autoDownloadToggle.checked = false;
     autoDownloadToggle.addEventListener('change', () => {
       const enabled = Boolean(autoDownloadToggle.checked);
       setAutoDownloadEnabled(enabled);
