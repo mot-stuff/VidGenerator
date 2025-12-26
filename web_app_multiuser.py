@@ -83,6 +83,7 @@ def _ensure_user_columns() -> None:
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS daily_videos_used INTEGER DEFAULT 0;')
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS daily_last_reset_date DATE DEFAULT CURRENT_DATE;')
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS last_login_ip VARCHAR(64);')
+            conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS subscription_tier VARCHAR(50) DEFAULT \'free\';')
             return
 
         existing: set[str] = set()
@@ -106,6 +107,7 @@ def _ensure_user_columns() -> None:
         add_col('daily_videos_used INTEGER DEFAULT 0', 'daily_videos_used')
         add_col('daily_last_reset_date DATE', 'daily_last_reset_date')
         add_col('last_login_ip TEXT', 'last_login_ip')
+        add_col("subscription_tier TEXT DEFAULT 'free'", 'subscription_tier')
 
 def _get_client_ip() -> str:
     cf_ip = request.headers.get("CF-Connecting-IP")
@@ -245,6 +247,7 @@ def admin_update_user(user_id: int):
     u = User.query.get_or_404(user_id)
     daily_quota = (request.form.get('daily_quota') or '').strip()
     is_admin = (request.form.get('is_admin') or '').strip()
+    subscription_tier = (request.form.get('subscription_tier') or '').strip().lower()
 
     if daily_quota:
         try:
@@ -254,6 +257,9 @@ def admin_update_user(user_id: int):
 
     if is_admin in ('0', '1'):
         u.is_admin = is_admin == '1'
+
+    if subscription_tier in ('free', 'starter', 'pro'):
+        u.subscription_tier = subscription_tier
 
     db.session.commit()
     return redirect(url_for('admin_dashboard'))

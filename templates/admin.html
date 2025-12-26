@@ -19,6 +19,7 @@
               <div class="file-name">{{ u.email }}</div>
               <div class="file-meta">
                 Admin: {{ 'yes' if u.is_admin else 'no' }} |
+                Plan: {{ u.subscription_tier or 'free' }} |
                 Daily quota: {{ u.get_daily_quota() }} |
                 Remaining today: {{ u.remaining_daily_quota() }} |
                 Last IP: {{ u.last_login_ip or '—' }}
@@ -27,6 +28,14 @@
                 <label style="margin:0;">
                   Daily quota
                   <input name="daily_quota" value="{{ u.get_daily_quota() }}" style="width: 90px; padding:8px; border:2px solid #d1d5db; border-radius:4px;">
+                </label>
+                <label style="margin:0; display:flex; gap:8px; align-items:center;">
+                  <span>Plan</span>
+                  <select name="subscription_tier" style="padding:8px; border:2px solid #d1d5db; border-radius:4px;">
+                    <option value="free" {% if (u.subscription_tier or 'free') == 'free' %}selected{% endif %}>Free</option>
+                    <option value="starter" {% if u.subscription_tier == 'starter' %}selected{% endif %}>Starter</option>
+                    <option value="pro" {% if u.subscription_tier == 'pro' %}selected{% endif %}>Pro</option>
+                  </select>
                 </label>
                 <label style="margin:0; display:flex; gap:8px; align-items:center;">
                   <span>Admin</span>
