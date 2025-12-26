@@ -358,6 +358,17 @@ textarea {
     margin: 8px 0;
 }
 
+.auth-hero-gif {
+    width: 100%;
+    height: auto;
+    max-height: 320px;
+    object-fit: contain;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.72);
+    margin-top: 12px;
+}
+
 .auth-container h2 {
     margin-bottom: 14px;
     color: var(--text);
