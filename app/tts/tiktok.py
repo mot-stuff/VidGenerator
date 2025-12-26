@@ -54,6 +54,21 @@ def _chunk_text_for_tiktok(text: str, max_chars: int = 200) -> list[str]:
     return chunks
 
 
+def _basic_mp3_sanity_check(path: Path) -> None:
+    if not path.exists() or not path.is_file():
+        raise RuntimeError("Synthesized output file was not created")
+    size = path.stat().st_size
+    if size < 256:
+        raise RuntimeError(f"Synthesized output file too small ({size} bytes)")
+
+    head = path.read_bytes()[:4]
+    if head.startswith(b"ID3"):
+        return
+    if len(head) >= 2 and head[0] == 0xFF and (head[1] & 0xE0) == 0xE0:
+        return
+    raise RuntimeError("Synthesized output does not look like an MP3 file")
+
+
 def _get_tiktok_tts_endpoints() -> list[str]:
     configured = (os.getenv("TIKTOK_TTS_ENDPOINTS") or "").strip()
     if configured:
@@ -161,14 +176,7 @@ def _synthesize_single_chunk(text: str, voice: str, out_dir: Path, suffix: str =
             else:
                 raise RuntimeError("Unsupported endpoint")
 
-            # Validate by loading briefly using MoviePy (avoids audioop requirement)
-            try:
-                from moviepy.editor import AudioFileClip  # imported lazily
-
-                with AudioFileClip(str(out_mp3)) as _a:
-                    _ = _a.duration
-            except Exception as _exc:  # noqa: BLE001
-                raise RuntimeError(f"Failed to read synthesized mp3: {_exc}")
+            _basic_mp3_sanity_check(out_mp3)
             return out_mp3
         except Exception as exc:  # noqa: BLE001
             last_error = exc
