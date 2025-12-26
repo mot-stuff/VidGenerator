@@ -252,11 +252,24 @@ textarea {
     border: 1px solid var(--border);
     border-radius: 14px;
     box-shadow: var(--shadow);
+    text-align: center;
 }
 
 .auth-container h2 {
     margin-bottom: 14px;
     color: var(--text);
+}
+
+.auth-logo {
+    display: block;
+    width: min(520px, 100%);
+    max-width: 520px;
+    height: auto;
+    margin: 4px auto 10px auto;
+}
+
+.auth-title {
+    text-align: center;
 }
 
 .auth-container p {

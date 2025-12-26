@@ -4,7 +4,8 @@
 
 {% block content %}
 <div class="auth-container">
-    <h2>Create Account</h2>
+    <img class="auth-logo" src="{{ url_for('static', filename='images/logo.png') }}" alt="mindsrot.app logo">
+    <h2 class="auth-title">Create Account</h2>
     <form method="POST">
         <div class="form-group">
             <label for="email">Email:</label>
