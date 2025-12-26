@@ -33,6 +33,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///tts_saas.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['GAM_REWARDED_AD_UNIT_PATH'] = os.getenv('GAM_REWARDED_AD_UNIT_PATH', '').strip()
 # No file size limits on VPS
 # app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # Removed for VPS
 
@@ -84,6 +85,7 @@ def _ensure_user_columns() -> None:
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS daily_last_reset_date DATE DEFAULT CURRENT_DATE;')
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS last_login_ip VARCHAR(64);')
             conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS subscription_tier VARCHAR(50) DEFAULT \'free\';')
+            conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS bonus_credits INTEGER DEFAULT 0;')
             return
 
         existing: set[str] = set()
@@ -108,6 +110,7 @@ def _ensure_user_columns() -> None:
         add_col('daily_last_reset_date DATE', 'daily_last_reset_date')
         add_col('last_login_ip TEXT', 'last_login_ip')
         add_col("subscription_tier TEXT DEFAULT 'free'", 'subscription_tier')
+        add_col('bonus_credits INTEGER DEFAULT 0', 'bonus_credits')
 
 def _get_client_ip() -> str:
     cf_ip = request.headers.get("CF-Connecting-IP")
@@ -387,8 +390,89 @@ def get_status():
             'is_admin': bool(getattr(current_user, 'is_admin', False)),
             'daily_quota': current_user.get_daily_quota() if hasattr(current_user, 'get_daily_quota') else 3,
             'daily_remaining': current_user.remaining_daily_quota() if hasattr(current_user, 'remaining_daily_quota') else 0,
+            'bonus_credits': int(getattr(current_user, 'bonus_credits', 0) or 0),
         }
     })
+
+
+@app.route('/api/rewarded/start', methods=['POST'])
+@login_required
+def rewarded_start():
+    if bool(getattr(current_user, 'is_admin', False)):
+        return jsonify({'error': 'Not eligible'}), 400
+
+    remaining = current_user.remaining_daily_quota() if hasattr(current_user, 'remaining_daily_quota') else 0
+    bonus = int(getattr(current_user, 'bonus_credits', 0) or 0)
+    if remaining > 0 or bonus > 0:
+        return jsonify({'error': 'Quota remaining'}), 400
+
+    from models import RewardTicket
+    now = datetime.utcnow()
+    today = now.date()
+
+    try:
+        redeemed_today = (
+            RewardTicket.query.filter(RewardTicket.user_id == current_user.id)
+            .filter(RewardTicket.redeemed_at.isnot(None))
+            .filter(db.func.date(RewardTicket.redeemed_at) == str(today))
+            .count()
+        )
+    except Exception:
+        redeemed_today = 0
+
+    if redeemed_today >= 3:
+        return jsonify({'error': 'Rewarded limit reached for today'}), 429
+
+    ticket_id = f"rw_{uuid.uuid4().hex}"
+    t = RewardTicket(id=ticket_id, user_id=current_user.id, created_at=now)
+    db.session.add(t)
+    db.session.commit()
+    return jsonify({'success': True, 'ticket_id': ticket_id, 'min_wait_s': 6})
+
+
+@app.route('/api/rewarded/redeem', methods=['POST'])
+@login_required
+def rewarded_redeem():
+    if bool(getattr(current_user, 'is_admin', False)):
+        return jsonify({'error': 'Not eligible'}), 400
+
+    data = request.json or {}
+    ticket_id = (data.get('ticket_id') or '').strip()
+    if not ticket_id:
+        return jsonify({'error': 'Missing ticket_id'}), 400
+
+    from models import RewardTicket
+    t = RewardTicket.query.filter_by(id=ticket_id, user_id=current_user.id).first()
+    if not t:
+        return jsonify({'error': 'Invalid ticket'}), 404
+    if t.redeemed_at is not None:
+        return jsonify({'error': 'Already redeemed'}), 400
+
+    now = datetime.utcnow()
+    try:
+        age_s = (now - (t.created_at or now)).total_seconds()
+    except Exception:
+        age_s = 0
+    if age_s < 6:
+        return jsonify({'error': 'Too soon'}), 429
+
+    remaining = current_user.remaining_daily_quota() if hasattr(current_user, 'remaining_daily_quota') else 0
+    bonus = int(getattr(current_user, 'bonus_credits', 0) or 0)
+    if remaining > 0 or bonus > 0:
+        return jsonify({'error': 'Quota remaining'}), 400
+
+    try:
+        current_user.bonus_credits = int(getattr(current_user, 'bonus_credits', 0) or 0) + 1
+        t.redeemed_at = now
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': 'Failed to redeem'}), 500
+
+    return jsonify({'success': True, 'bonus_credits': int(current_user.bonus_credits or 0)})
 
 @app.route('/api/upload_video', methods=['POST'])
 @login_required

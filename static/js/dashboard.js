@@ -346,6 +346,10 @@ async function startGeneration(state) {
     if (!parsed.ok || !parsed.data || !parsed.data.success) {
       const msg = parsed.data && parsed.data.error ? parsed.data.error : parsed.raw ? parsed.raw.slice(0, 200) : 'No response body';
       updateStatus(`❌ Generation failed (${parsed.status}): ${msg}`, true);
+      if (parsed.status === 429 && String(msg).toLowerCase().includes('daily limit')) {
+        const el = document.querySelector('#rewardedContainer');
+        if (el) el.classList.remove('hidden');
+      }
       return;
     }
     updateStatus('✅ Video generation started');
@@ -367,6 +371,10 @@ async function startGeneration(state) {
   if (!parsed.ok || !parsed.data || !parsed.data.success) {
     const msg = parsed.data && parsed.data.error ? parsed.data.error : parsed.raw ? parsed.raw.slice(0, 200) : 'No response body';
     updateStatus(`❌ Batch failed (${parsed.status}): ${msg}`, true);
+    if (parsed.status === 429 && String(msg).toLowerCase().includes('daily limit')) {
+      const el = document.querySelector('#rewardedContainer');
+      if (el) el.classList.remove('hidden');
+    }
     return;
   }
   updateStatus('✅ Batch started');

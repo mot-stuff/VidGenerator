@@ -22,6 +22,8 @@ class User(UserMixin, db.Model):
     daily_quota = db.Column(db.Integer, default=3)
     daily_videos_used = db.Column(db.Integer, default=0)
     daily_last_reset_date = db.Column(db.Date, default=date.today)
+
+    bonus_credits = db.Column(db.Integer, default=0)
     
     # Usage tracking
     videos_used_this_month = db.Column(db.Integer, default=0)
@@ -86,13 +88,27 @@ class User(UserMixin, db.Model):
         if self.is_admin:
             return True
         self._reset_daily_usage_if_needed()
-        return self.remaining_daily_quota() >= max(1, int(count))
+        requested = max(1, int(count))
+        bonus = self.bonus_credits or 0
+        return (self.remaining_daily_quota() + int(bonus)) >= requested
 
     def consume_daily_quota(self, count: int = 1) -> None:
         self._reset_daily_usage_if_needed()
+        requested = max(1, int(count))
+
+        bonus = int(self.bonus_credits or 0)
+        if bonus > 0:
+            used_bonus = min(bonus, requested)
+            self.bonus_credits = bonus - used_bonus
+            requested -= used_bonus
+
+        if requested <= 0:
+            db.session.commit()
+            return
+
         if self.daily_videos_used is None:
             self.daily_videos_used = 0
-        self.daily_videos_used += max(1, int(count))
+        self.daily_videos_used += requested
         db.session.commit()
     
     def __repr__(self):
@@ -114,6 +130,15 @@ class VideoJob(db.Model):
     
     def __repr__(self):
         return f'<VideoJob {self.id}: {self.status}>'
+
+
+class RewardTicket(db.Model):
+    id = db.Column(db.String(64), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    redeemed_at = db.Column(db.DateTime, index=True)
+
+    user = db.relationship('User', backref=db.backref('reward_tickets', lazy=True))
 
 
 class AuthEvent(db.Model):

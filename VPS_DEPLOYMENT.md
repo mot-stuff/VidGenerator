@@ -74,6 +74,7 @@ SECRET_KEY=your-super-secure-secret-key-here
 DATABASE_URL=postgresql://tts_user:your-secure-password@localhost/tts_saas
 FLASK_ENV=production
 ADMIN_EMAILS=tomalty333@gmail.com
+GAM_REWARDED_AD_UNIT_PATH=/1234/main/top
 EOF
 
 # Initialize database
