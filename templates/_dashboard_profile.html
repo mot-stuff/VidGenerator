@@ -22,9 +22,8 @@
         </div>
     </div>
 
+    {% call collapsible('Profile settings', open=False) %}
     <div class="section">
-        <h2>Profile</h2>
-
         <div class="form-group">
             <label for="profileUsername">Username</label>
             <input type="text" id="profileUsername" value="{{ user.username or '' }}" placeholder="yourname" maxlength="32">
@@ -46,6 +45,7 @@
             <button class="btn btn-secondary" type="button" id="savePasswordBtn">Change password</button>
         </div>
     </div>
+    {% endcall %}
 </div>
 {% endcall %}
 
