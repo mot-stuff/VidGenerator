@@ -76,8 +76,8 @@ body {
 }
 
 .brand-logo {
-    height: 30px;
-    width: auto;
+    height: 32px;
+    width: 32px;
     border-radius: 10px;
     display: block;
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
@@ -545,7 +545,8 @@ input[type="checkbox"] {
         display: none;
     }
     .brand-logo {
-        height: 28px;
+        height: 30px;
+        width: 30px;
         border-radius: 9px;
     }
     .wizard-stepper {
