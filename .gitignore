@@ -108,3 +108,5 @@ yarn-error.log*
 *.wav
 *.flac
 *.m4a
+
+VPS_DEPLOYMENT.md
