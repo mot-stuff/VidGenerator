@@ -1,13 +1,62 @@
+from datetime import datetime, timedelta
+from typing import Optional
 from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
-from models import User, db
+from models import User, AuthEvent, db
 
 auth = Blueprint('auth', __name__)
+
+def _get_client_ip() -> str:
+    # Prefer Cloudflare/forwarded headers if present, else remote_addr.
+    cf_ip = request.headers.get("CF-Connecting-IP")
+    if cf_ip:
+        return cf_ip.strip()
+    xff = request.headers.get("X-Forwarded-For")
+    if xff:
+        # first IP is the original client
+        return xff.split(",")[0].strip()
+    return (request.remote_addr or "unknown").strip()
+
+def _rate_limit_exceeded(ip: str, action: str, email: Optional[str], max_count: int, window_s: int) -> bool:
+    cutoff = datetime.utcnow() - timedelta(seconds=window_s)
+    try:
+        ip_count = AuthEvent.query.filter(
+            AuthEvent.ip == ip,
+            AuthEvent.action == action,
+            AuthEvent.created_at >= cutoff,
+        ).count()
+        if ip_count >= max_count:
+            return True
+
+        if email:
+            email_count = AuthEvent.query.filter(
+                AuthEvent.email == email,
+                AuthEvent.action == action,
+                AuthEvent.created_at >= cutoff,
+            ).count()
+            return email_count >= max_count
+        return False
+    except Exception:
+        return False
+
+def _record_auth_event(ip: str, action: str, email: Optional[str]) -> None:
+    try:
+        db.session.add(AuthEvent(ip=ip, action=action, email=(email or None)))
+        # Retain only recent history to prevent unbounded growth
+        cutoff = datetime.utcnow() - timedelta(days=14)
+        AuthEvent.query.filter(AuthEvent.created_at < cutoff).delete(synchronize_session=False)
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        ip = _get_client_ip()
         if request.is_json:
             # API login
             data = request.get_json()
@@ -17,11 +66,21 @@ def login():
             # Form login
             email = request.form.get('email')
             password = request.form.get('password')
+
+        email_norm = (email or "").strip().lower() or None
+        # Rate limit login attempts to slow brute force / scripted abuse
+        if _rate_limit_exceeded(ip=ip, action="login", email=email_norm, max_count=20, window_s=600):
+            msg = "Too many login attempts. Please wait a few minutes."
+            if request.is_json:
+                return jsonify({"success": False, "error": msg}), 429
+            flash(msg)
+            return render_template('login.html'), 429
         
         user = User.query.filter_by(email=email).first()
         
         if user and user.check_password(password):
             login_user(user, remember=True)
+            _record_auth_event(ip=ip, action="login", email=email_norm)
             if request.is_json:
                 return jsonify({
                     'success': True,
@@ -35,6 +94,7 @@ def login():
             return redirect(url_for('dashboard'))
         else:
             error_msg = 'Invalid email or password'
+            _record_auth_event(ip=ip, action="login", email=email_norm)
             if request.is_json:
                 return jsonify({'success': False, 'error': error_msg}), 401
             flash(error_msg)
@@ -44,6 +104,7 @@ def login():
 @auth.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
+        ip = _get_client_ip()
         if request.is_json:
             # API registration
             data = request.get_json()
@@ -53,20 +114,33 @@ def register():
             # Form registration
             email = request.form.get('email')
             password = request.form.get('password')
+
+        email_norm = (email or "").strip().lower() or None
+        # Rate limit registrations to prevent quota bypass by mass-account creation
+        # - 3 registrations / 10 minutes per IP/email
+        # - 10 registrations / day per IP/email
+        if _rate_limit_exceeded(ip=ip, action="register", email=email_norm, max_count=3, window_s=600) or _rate_limit_exceeded(ip=ip, action="register", email=email_norm, max_count=10, window_s=86400):
+            msg = "Too many accounts created from this network. Please try again later."
+            if request.is_json:
+                return jsonify({"success": False, "error": msg}), 429
+            flash(msg)
+            return render_template('register.html'), 429
         
         # Check if user already exists
         if User.query.filter_by(email=email).first():
             error_msg = 'Email already registered'
+            _record_auth_event(ip=ip, action="register", email=email_norm)
             if request.is_json:
                 return jsonify({'success': False, 'error': error_msg}), 400
             flash(error_msg)
             return render_template('register.html')
         
         # Create new user
-        user = User(email=email)
+        user = User(email=(email_norm or email))
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
+        _record_auth_event(ip=ip, action="register", email=email_norm)
         
         login_user(user)
         

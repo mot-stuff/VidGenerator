@@ -111,3 +111,17 @@ class VideoJob(db.Model):
     
     def __repr__(self):
         return f'<VideoJob {self.id}: {self.status}>'
+
+
+class AuthEvent(db.Model):
+    """Track auth-related events for abuse prevention (DB-backed rate limiting)."""
+    id = db.Column(db.Integer, primary_key=True)
+    ip = db.Column(db.String(64), nullable=False, index=True)
+    action = db.Column(db.String(32), nullable=False, index=True)  # register, login
+    email = db.Column(db.String(120), index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    __table_args__ = (
+        db.Index("ix_authevent_ip_action_created", "ip", "action", "created_at"),
+        db.Index("ix_authevent_email_action_created", "email", "action", "created_at"),
+    )
