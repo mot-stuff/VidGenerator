@@ -66,6 +66,32 @@ body {
     gap: 10px;
 }
 
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: var(--text);
+    min-width: 0;
+}
+
+.brand-logo {
+    height: 30px;
+    width: auto;
+    border-radius: 10px;
+    display: block;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+.brand-name {
+    font-size: 1.05rem;
+    font-weight: 900;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .nav .user-info {
     display: flex;
     align-items: center;
@@ -514,6 +540,13 @@ input[type="checkbox"] {
     }
     .nav {
         padding: 12px;
+    }
+    .brand-name {
+        display: none;
+    }
+    .brand-logo {
+        height: 28px;
+        border-radius: 9px;
     }
     .wizard-stepper {
         flex-direction: column;
