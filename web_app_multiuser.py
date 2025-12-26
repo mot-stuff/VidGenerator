@@ -1972,7 +1972,8 @@ if __name__ == '__main__':
     
     # Production vs development
     port = int(os.getenv('PORT', 5000))
-    debug = os.getenv('FLASK_ENV') != 'production'
+    _flask_debug = (os.getenv("FLASK_DEBUG") or "").strip().lower()
+    debug = _flask_debug in {"1", "true", "t", "yes", "y", "on"}
     host = '0.0.0.0'  # Always bind to all interfaces for Render
     
     print("🚀 Starting Multi-User TTS Shorts Generator...")
