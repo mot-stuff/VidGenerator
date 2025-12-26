@@ -29,6 +29,7 @@ function defaultState() {
     splitScreen: false,
     videos: { video1: null, video2: null }, // file_id values
     videoSources: { video1: 'upload', video2: 'upload' }, // upload | preset
+    presetIds: { video1: 'minecraft_parkour', video2: 'minecraft_parkour' },
   };
 }
 
@@ -96,7 +97,15 @@ function normalizeState(state) {
   if (!state.videoSources.video1) state.videoSources.video1 = 'upload';
   if (!state.videoSources.video2) state.videoSources.video2 = 'upload';
   if (!state.videos) state.videos = { video1: null, video2: null };
+  if (!state.presetIds) state.presetIds = { video1: 'minecraft_parkour', video2: 'minecraft_parkour' };
+  if (!state.presetIds.video1) state.presetIds.video1 = 'minecraft_parkour';
+  if (!state.presetIds.video2) state.presetIds.video2 = 'minecraft_parkour';
   return state;
+}
+
+function presetLabelFromId(id) {
+  if (id === 'minecraft_parkour') return 'Minecraft Parkour';
+  return 'Preset';
 }
 
 function renderTextList(state) {
@@ -187,6 +196,10 @@ function renderWizard(state) {
   const v2Input = qs('#video2');
   const v1Info = qs('#video1Info');
   const v2Info = qs('#video2Info');
+  const v1PresetRow = qs('#video1PresetRow');
+  const v2PresetRow = qs('#video2PresetRow');
+  const v1PresetSelect = qs('#video1PresetSelect');
+  const v2PresetSelect = qs('#video2PresetSelect');
 
   const v1UsingPreset = state.videoSources.video1 === 'preset';
   const v2UsingPreset = state.videoSources.video2 === 'preset';
@@ -197,12 +210,23 @@ function renderWizard(state) {
   const v2PresetRadios = qsa('input[name="video2Source"][value="preset"]');
   v2PresetRadios.forEach((r) => (r.disabled = !presetCfg.video2Path));
 
+  if (v1PresetSelect) v1PresetSelect.value = state.presetIds.video1 || 'minecraft_parkour';
+  if (v2PresetSelect) v2PresetSelect.value = state.presetIds.video2 || 'minecraft_parkour';
+
+  setHidden(v1PresetRow, !v1UsingPreset);
+  setHidden(v2PresetRow, !v2UsingPreset);
+
+  setHidden(v1Input, v1UsingPreset);
+  setHidden(v2Input, v2UsingPreset);
+
   if (v1Input) v1Input.disabled = v1UsingPreset;
   if (v2Input) v2Input.disabled = v2UsingPreset;
 
   if (v1UsingPreset) {
     if (v1Info) {
-      v1Info.textContent = presetCfg.video1Path ? '✅ Preset selected' : 'Preset not configured';
+      v1Info.textContent = presetCfg.video1Path
+        ? `✅ Preset: ${presetLabelFromId(state.presetIds.video1)}`
+        : 'Preset not configured';
       v1Info.classList.remove('hidden');
     }
   } else {
@@ -212,7 +236,9 @@ function renderWizard(state) {
   if (state.splitScreen) {
     if (v2UsingPreset) {
       if (v2Info) {
-        v2Info.textContent = presetCfg.video2Path ? '✅ Preset selected' : 'Preset not configured';
+        v2Info.textContent = (presetCfg.video2Path || presetCfg.video1Path)
+          ? `✅ Preset: ${presetLabelFromId(state.presetIds.video2)}`
+          : 'Preset not configured';
         v2Info.classList.remove('hidden');
       }
     } else {
@@ -234,10 +260,14 @@ function renderWizard(state) {
   if (summary) {
     const textCount = state.textMode === 'single' ? (state.singleText.trim() ? 1 : 0) : state.texts.length;
     const v1 =
-      state.videoSources.video1 === 'preset' ? 'preset' : state.videos.video1 ? 'uploaded' : 'missing';
+      state.videoSources.video1 === 'preset'
+        ? presetLabelFromId(state.presetIds.video1)
+        : state.videos.video1
+          ? 'uploaded'
+          : 'missing';
     const v2 = state.splitScreen
       ? state.videoSources.video2 === 'preset'
-        ? 'preset'
+        ? presetLabelFromId(state.presetIds.video2)
         : state.videos.video2
           ? 'uploaded'
           : 'missing'
@@ -445,6 +475,8 @@ async function startGeneration(state) {
 
   const usePresetVideo1 = state.videoSources.video1 === 'preset';
   const usePresetVideo2 = state.videoSources.video2 === 'preset';
+  const video1PresetId = usePresetVideo1 ? String(state.presetIds.video1 || 'minecraft_parkour') : null;
+  const video2PresetId = usePresetVideo2 ? String(state.presetIds.video2 || 'minecraft_parkour') : null;
 
   if (!isBatch) {
     const payload = {
@@ -454,6 +486,8 @@ async function startGeneration(state) {
       split_screen_enabled: state.splitScreen,
       use_preset_video1: usePresetVideo1,
       use_preset_video2: usePresetVideo2,
+      video1_preset_id: video1PresetId,
+      video2_preset_id: video2PresetId,
     };
     const r = await fetch('/api/generate_video', {
       method: 'POST',
@@ -481,6 +515,8 @@ async function startGeneration(state) {
     split_screen_enabled: state.splitScreen,
     use_preset_video1: usePresetVideo1,
     use_preset_video2: usePresetVideo2,
+    video1_preset_id: video1PresetId,
+    video2_preset_id: video2PresetId,
   };
   const r = await fetch('/api/generate_batch', {
     method: 'POST',
@@ -637,6 +673,24 @@ document.addEventListener('DOMContentLoaded', () => {
       renderWizard(state);
     });
   });
+
+  const v1PresetSelect = qs('#video1PresetSelect');
+  if (v1PresetSelect) {
+    v1PresetSelect.addEventListener('change', () => {
+      state.presetIds.video1 = String(v1PresetSelect.value || 'minecraft_parkour');
+      saveState(state);
+      renderWizard(state);
+    });
+  }
+
+  const v2PresetSelect = qs('#video2PresetSelect');
+  if (v2PresetSelect) {
+    v2PresetSelect.addEventListener('change', () => {
+      state.presetIds.video2 = String(v2PresetSelect.value || 'minecraft_parkour');
+      saveState(state);
+      renderWizard(state);
+    });
+  }
 
   const v1 = qs('#video1');
   if (v1) {

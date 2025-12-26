@@ -198,6 +198,22 @@ def _get_preset_video_path(config_key: str) -> Path | None:
     except Exception:
         return None
 
+def _resolve_preset_video(preset_id: str | None, slot: str) -> Path | None:
+    pid = (preset_id or "").strip().lower()
+    if not pid:
+        pid = "minecraft_parkour"
+
+    if pid != "minecraft_parkour":
+        return None
+
+    if slot == "video2":
+        p2 = _get_preset_video_path("PRESET_VIDEO2_PATH")
+        if p2 is not None:
+            return p2
+        return _get_preset_video_path("PRESET_VIDEO1_PATH")
+
+    return _get_preset_video_path("PRESET_VIDEO1_PATH")
+
 def _cleanup_expired_user_artifacts(user_id: int, ttl_s: int = 120) -> None:
     now_ts = time.time()
 
@@ -670,6 +686,8 @@ def generate_video():
     split_screen_enabled = data.get('split_screen_enabled', False)
     use_preset_video1 = bool(data.get('use_preset_video1', False))
     use_preset_video2 = bool(data.get('use_preset_video2', False))
+    video1_preset_id = (data.get('video1_preset_id') or '').strip() or None
+    video2_preset_id = (data.get('video2_preset_id') or '').strip() or None
     user_id = current_user.id
     
     if not text:
@@ -690,13 +708,13 @@ def generate_video():
     
     user_upload_dir = get_user_directory(current_user.id, "uploads")
 
-    preset1 = _get_preset_video_path("PRESET_VIDEO1_PATH") if use_preset_video1 else None
+    preset1 = _resolve_preset_video(video1_preset_id, "video1") if use_preset_video1 else None
     if use_preset_video1 and preset1 is None:
         return jsonify({'error': 'Preset video is not configured on the server'}), 400
 
-    preset2 = _get_preset_video_path("PRESET_VIDEO2_PATH") if use_preset_video2 else None
+    preset2 = _resolve_preset_video(video2_preset_id, "video2") if use_preset_video2 else None
     if split_screen_enabled and use_preset_video2 and preset2 is None:
-        return jsonify({'error': 'Preset video 2 is not configured on the server'}), 400
+        return jsonify({'error': 'Preset video is not configured on the server'}), 400
 
     if use_preset_video1:
         video_path = preset1
@@ -722,6 +740,8 @@ def generate_video():
         split_screen_enabled: bool,
         use_preset_video1: bool,
         use_preset_video2: bool,
+        video1_preset_id: str | None,
+        video2_preset_id: str | None,
         preset1_path: str | None,
         preset2_path: str | None,
     ):
@@ -750,8 +770,9 @@ def generate_video():
                     delete_video2 = True
 
             # Create video job record
-            if use_preset_video1 and preset1_path:
-                job_filename = f"preset:{Path(preset1_path).name}"
+            if use_preset_video1:
+                pid = (video1_preset_id or "").strip() or "minecraft_parkour"
+                job_filename = f"preset:{pid}"
             else:
                 job_filename = str(video_file_id or "upload")
             job = VideoJob(
@@ -850,6 +871,8 @@ def generate_video():
             split_screen_enabled,
             use_preset_video1,
             use_preset_video2,
+            video1_preset_id,
+            video2_preset_id,
             str(video_path) if use_preset_video1 else None,
             str(video2_path) if (split_screen_enabled and use_preset_video2 and video2_path) else None,
         ),
@@ -912,6 +935,8 @@ def generate_batch():
     split_screen_enabled = data.get('split_screen_enabled', False)
     use_preset_video1 = bool(data.get('use_preset_video1', False))
     use_preset_video2 = bool(data.get('use_preset_video2', False))
+    video1_preset_id = (data.get('video1_preset_id') or '').strip() or None
+    video2_preset_id = (data.get('video2_preset_id') or '').strip() or None
     user_id = current_user.id
     
     if not texts:
@@ -935,13 +960,13 @@ def generate_batch():
     
     user_upload_dir = get_user_directory(current_user.id, "uploads")
 
-    preset1 = _get_preset_video_path("PRESET_VIDEO1_PATH") if use_preset_video1 else None
+    preset1 = _resolve_preset_video(video1_preset_id, "video1") if use_preset_video1 else None
     if use_preset_video1 and preset1 is None:
         return jsonify({'error': 'Preset video is not configured on the server'}), 400
 
-    preset2 = _get_preset_video_path("PRESET_VIDEO2_PATH") if use_preset_video2 else None
+    preset2 = _resolve_preset_video(video2_preset_id, "video2") if use_preset_video2 else None
     if split_screen_enabled and use_preset_video2 and preset2 is None:
-        return jsonify({'error': 'Preset video 2 is not configured on the server'}), 400
+        return jsonify({'error': 'Preset video is not configured on the server'}), 400
 
     if use_preset_video1:
         video_path = preset1
@@ -967,6 +992,8 @@ def generate_batch():
         split_screen_enabled: bool,
         use_preset_video1: bool,
         use_preset_video2: bool,
+        video1_preset_id: str | None,
+        video2_preset_id: str | None,
         preset1_path: str | None,
         preset2_path: str | None,
     ):
@@ -1100,6 +1127,8 @@ def generate_batch():
             split_screen_enabled,
             use_preset_video1,
             use_preset_video2,
+            video1_preset_id,
+            video2_preset_id,
             str(video_path) if use_preset_video1 else None,
             str(video2_path) if (split_screen_enabled and use_preset_video2 and video2_path) else None,
         ),
