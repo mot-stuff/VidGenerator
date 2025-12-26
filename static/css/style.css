@@ -58,7 +58,7 @@ body {
     border: 1px solid var(--border);
     backdrop-filter: blur(10px);
     border-radius: 12px;
-    padding: 6px 12px;
+    padding: 4px 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -76,7 +76,7 @@ body {
 }
 
 .brand-logo {
-    height: 62px;
+    height: 110px;
     width: auto;
     max-width: 520px;
     border-radius: 0;
@@ -102,7 +102,7 @@ body {
     flex-wrap: wrap;
     justify-content: flex-end;
     color: var(--muted);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 .container {
@@ -113,6 +113,14 @@ body {
     border-radius: 14px; 
     box-shadow: var(--shadow);
     overflow: hidden;
+}
+
+/* Slimmer nav buttons so we can grow the logo without inflating header height */
+.nav .btn {
+    padding: 8px 12px;
+    border-radius: 10px;
+    margin: 0;
+    font-size: 13px;
 }
 
 .header {
@@ -562,7 +570,7 @@ input[type="checkbox"] {
         padding: 4px 10px;
     }
     .brand-logo {
-        height: 54px;
+        height: 88px;
         width: auto;
         max-width: 420px;
         border-radius: 0;
