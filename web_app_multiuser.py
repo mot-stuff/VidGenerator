@@ -241,6 +241,12 @@ def dashboard():
 def shop():
     return render_template('shop.html')
 
+
+@app.route('/support')
+@login_required
+def support():
+    return render_template('support.html')
+
 @app.route('/admin', methods=['GET'])
 @login_required
 @admin_required
