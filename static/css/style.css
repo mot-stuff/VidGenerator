@@ -74,12 +74,12 @@ body {
 }
 
 .brand-logo {
-    height: 52px;
+    height: 68px;
     width: auto;
-    max-width: 420px;
-    border-radius: 10px;
+    max-width: 560px;
+    border-radius: 0;
     display: block;
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+    box-shadow: none;
 }
 
 .brand-name {
@@ -553,9 +553,9 @@ input[type="checkbox"] {
         padding: 12px;
     }
     .brand-logo {
-        height: 44px;
-        max-width: 260px;
-        border-radius: 10px;
+        height: 56px;
+        max-width: 320px;
+        border-radius: 0;
     }
     .wizard-stepper {
         flex-direction: column;
