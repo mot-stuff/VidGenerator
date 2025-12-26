@@ -359,8 +359,9 @@ textarea {
 }
 
 .auth-hero-gif {
-    width: min(320px, 46%);
-    height: auto;
+    height: 220px;
+    width: auto;
+    max-width: 220px;
     float: right;
     object-fit: cover;
     border-radius: 12px;
