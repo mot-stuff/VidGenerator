@@ -21,6 +21,7 @@
             <div class="user-info">
                 Welcome, {{ current_user.email }}
                 <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Home</a>
+                <a href="{{ url_for('shop') }}" class="btn btn-secondary">Shop</a>
                 {% if current_user.is_admin %}
                 <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Admin</a>
                 {% endif %}

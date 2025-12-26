@@ -235,6 +235,12 @@ def index():
 def dashboard():
     return render_template('dashboard.html', user=current_user)
 
+
+@app.route('/shop')
+@login_required
+def shop():
+    return render_template('shop.html')
+
 @app.route('/admin', methods=['GET'])
 @login_required
 @admin_required

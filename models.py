@@ -66,11 +66,16 @@ class User(UserMixin, db.Model):
     def get_daily_quota(self) -> int:
         q = self.daily_quota
         if q is None:
-            return 3
+            q = 3
         try:
-            return max(0, int(q))
+            base = max(0, int(q))
         except Exception:
-            return 3
+            base = 3
+
+        tier = (self.subscription_tier or 'free').strip().lower()
+        if tier == 'pro':
+            return max(base, 12)
+        return base
 
     def _reset_daily_usage_if_needed(self) -> None:
         today = datetime.utcnow().date()
