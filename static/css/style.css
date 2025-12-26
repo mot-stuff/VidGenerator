@@ -562,9 +562,9 @@ input[type="checkbox"] {
         padding: 12px;
     }
     .brand-logo {
-        height: 46px;
+        height: 69px;
         width: auto;
-        max-width: 220px;
+        max-width: 330px;
         border-radius: 0;
     }
     .wizard-stepper {
