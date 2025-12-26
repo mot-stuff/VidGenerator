@@ -11,7 +11,7 @@ import uuid
 import json
 from pathlib import Path
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, after_this_request, send_file, abort
+from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, after_this_request, send_file, abort, session, flash
 from flask_login import LoginManager, login_required, current_user
 from dotenv import load_dotenv
 
@@ -1003,6 +1003,19 @@ def youtube_status():
     user_dir = get_user_directory(current_user.id, "youtube")
     creds_path = user_dir / "youtube_credentials.json"
     token_path = user_dir / "youtube_token.json"
+    client_id = None
+    client_secret_masked = None
+    try:
+        if creds_path.exists():
+            raw = json.loads(creds_path.read_text(encoding="utf-8"))
+            web = raw.get("web") or raw.get("installed") or {}
+            client_id = (web.get("client_id") or None)
+            cs = (web.get("client_secret") or "")
+            if cs:
+                client_secret_masked = f"{cs[:4]}…{cs[-4:]}" if len(cs) > 8 else "••••"
+    except Exception:
+        client_id = None
+        client_secret_masked = None
 
     auto_upload = False
     try:
@@ -1022,7 +1035,108 @@ def youtube_status():
         "has_token": token_path.exists(),
         "auto_upload": bool(auto_upload),
         "note": note,
+        "client_id": client_id,
+        "client_secret_masked": client_secret_masked,
     })
+
+@app.route('/api/youtube/credentials', methods=['POST'])
+@login_required
+def youtube_save_credentials():
+    if not _is_youtube_eligible():
+        return jsonify({"success": False, "error": "Pro plan required"}), 403
+    data = request.json or {}
+    client_id = (data.get("client_id") or "").strip()
+    client_secret = (data.get("client_secret") or "").strip()
+    if not client_id or not client_secret:
+        return jsonify({"success": False, "error": "Missing client_id/client_secret"}), 400
+
+    user_dir = get_user_directory(current_user.id, "youtube")
+    creds_path = user_dir / "youtube_credentials.json"
+
+    redirect_uri = url_for("youtube_oauth_callback", _external=True)
+    payload = {
+        "web": {
+            "client_id": client_id,
+            "project_id": "mindsrot",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_secret": client_secret,
+            "redirect_uris": [redirect_uri],
+        }
+    }
+    try:
+        creds_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except Exception:
+        return jsonify({"success": False, "error": "Failed to save credentials"}), 500
+
+    return jsonify({"success": True})
+
+
+@app.route('/api/youtube/connect', methods=['POST'])
+@login_required
+def youtube_connect():
+    if not _is_youtube_eligible():
+        return jsonify({"success": False, "error": "Pro plan required"}), 403
+
+    user_dir = get_user_directory(current_user.id, "youtube")
+    creds_path = user_dir / "youtube_credentials.json"
+    if not creds_path.exists():
+        return jsonify({"success": False, "error": "Save Client ID/Secret first"}), 400
+
+    try:
+        from google_auth_oauthlib.flow import Flow
+    except Exception:
+        return jsonify({"success": False, "error": "YouTube OAuth dependencies not installed"}), 500
+
+    try:
+        client_config = json.loads(creds_path.read_text(encoding="utf-8"))
+        flow = Flow.from_client_config(client_config, scopes=["https://www.googleapis.com/auth/youtube.upload"])
+        flow.redirect_uri = url_for("youtube_oauth_callback", _external=True)
+        auth_url, state = flow.authorization_url(access_type="offline", include_granted_scopes="true", prompt="consent")
+        session["yt_oauth_state"] = state
+        return jsonify({"success": True, "auth_url": auth_url})
+    except Exception:
+        return jsonify({"success": False, "error": "Failed to start OAuth flow"}), 500
+
+
+@app.route('/youtube/oauth/callback')
+@login_required
+def youtube_oauth_callback():
+    if not _is_youtube_eligible():
+        return redirect(url_for("dashboard"))
+
+    state = (request.args.get("state") or "").strip()
+    expected = (session.get("yt_oauth_state") or "").strip()
+    if not state or not expected or state != expected:
+        flash("YouTube connect failed (invalid state).")
+        return redirect(url_for("dashboard"))
+
+    user_dir = get_user_directory(current_user.id, "youtube")
+    creds_path = user_dir / "youtube_credentials.json"
+    token_path = user_dir / "youtube_token.json"
+    if not creds_path.exists():
+        flash("YouTube connect failed (missing credentials).")
+        return redirect(url_for("dashboard"))
+
+    try:
+        from google_auth_oauthlib.flow import Flow
+    except Exception:
+        flash("YouTube connect failed (missing dependencies).")
+        return redirect(url_for("dashboard"))
+
+    try:
+        client_config = json.loads(creds_path.read_text(encoding="utf-8"))
+        flow = Flow.from_client_config(client_config, scopes=["https://www.googleapis.com/auth/youtube.upload"], state=state)
+        flow.redirect_uri = url_for("youtube_oauth_callback", _external=True)
+        flow.fetch_token(authorization_response=request.url)
+        creds = flow.credentials
+        token_path.write_text(creds.to_json(), encoding="utf-8")
+        flash("✅ YouTube connected successfully.")
+    except Exception:
+        flash("YouTube connect failed. Double-check your OAuth client and redirect URI.")
+
+    return redirect(url_for("dashboard"))
 
 
 @app.route('/api/youtube/upload', methods=['POST'])

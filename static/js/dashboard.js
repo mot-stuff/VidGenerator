@@ -582,6 +582,8 @@ async function startGeneration(state) {
 async function refreshYoutubeUi() {
   const statusEl = qs('#ytStatusInfo');
   const autoEl = qs('#ytAutoUpload');
+  const cidEl = qs('#ytClientId');
+  const csecEl = qs('#ytClientSecret');
   if (!statusEl || !autoEl) return;
 
   if (!isProUser()) {
@@ -607,6 +609,9 @@ async function refreshYoutubeUi() {
     const note = d.note ? ` — ${String(d.note)}` : '';
     statusEl.textContent = `${creds} | ${token} | ${enabled}${note}`;
     statusEl.classList.remove('hidden');
+
+    if (cidEl && d.client_id) cidEl.value = String(d.client_id);
+    if (csecEl && d.client_secret_masked) csecEl.placeholder = String(d.client_secret_masked);
   } catch {
     statusEl.textContent = 'Failed to load YouTube status.';
     statusEl.classList.remove('hidden');
@@ -636,6 +641,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const ytCreds = qs('#ytCredentialsFile');
   const ytToken = qs('#ytTokenFile');
   const ytAutoUpload = qs('#ytAutoUpload');
+  const ytSaveCredsBtn = qs('#ytSaveCredsBtn');
+  const ytConnectBtn = qs('#ytConnectBtn');
+  const ytClientId = qs('#ytClientId');
+  const ytClientSecret = qs('#ytClientSecret');
 
   renderWizard(state);
   refreshYoutubeUi();
@@ -859,6 +868,48 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       updateStatus('✅ YouTube files saved');
       await refreshYoutubeUi();
+    });
+  }
+
+  if (ytSaveCredsBtn) {
+    ytSaveCredsBtn.addEventListener('click', async () => {
+      if (!isProUser()) return;
+      const clientId = (ytClientId?.value || '').trim();
+      const clientSecret = (ytClientSecret?.value || '').trim();
+      if (!clientId || !clientSecret) {
+        updateStatus('Enter Client ID and Client Secret first', true);
+        return;
+      }
+      updateStatus('Saving YouTube credentials...');
+      const r = await fetch('/api/youtube/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId, client_secret: clientSecret }),
+      });
+      const parsed = await parseApiResponse(r);
+      if (!parsed.ok || !parsed.data || !parsed.data.success) {
+        const msg = parsed.data && parsed.data.error ? parsed.data.error : parsed.raw ? parsed.raw.slice(0, 200) : 'Failed';
+        updateStatus(`❌ Save failed (${parsed.status}): ${msg}`, true);
+        await refreshYoutubeUi();
+        return;
+      }
+      updateStatus('✅ Credentials saved');
+      await refreshYoutubeUi();
+    });
+  }
+
+  if (ytConnectBtn) {
+    ytConnectBtn.addEventListener('click', async () => {
+      if (!isProUser()) return;
+      updateStatus('Opening YouTube consent screen...');
+      const r = await fetch('/api/youtube/connect', { method: 'POST' });
+      const parsed = await parseApiResponse(r);
+      if (!parsed.ok || !parsed.data || !parsed.data.success || !parsed.data.auth_url) {
+        const msg = parsed.data && parsed.data.error ? parsed.data.error : parsed.raw ? parsed.raw.slice(0, 200) : 'Failed';
+        updateStatus(`❌ Connect failed (${parsed.status}): ${msg}`, true);
+        return;
+      }
+      window.location.href = String(parsed.data.auth_url);
     });
   }
 
