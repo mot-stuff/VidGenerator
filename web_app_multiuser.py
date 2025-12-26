@@ -809,6 +809,9 @@ def generate_video():
     bg_music_volume = data.get('bg_music_volume', 0.15)
     bg_music_file_id = (data.get('bg_music_file_id') or '').strip() or None
     user_id = current_user.id
+
+    # Clear any previous cancel request for this user when starting a new job.
+    _set_user_cancel_flag(user_id, False)
     
     if not text:
         return jsonify({'error': 'Please enter some text'}), 400
@@ -923,6 +926,47 @@ def generate_video():
             db.session.commit()
 
             try:
+                def _is_cancelled() -> bool:
+                    try:
+                        db.session.refresh(job)
+                        if (job.status or "").lower() == "cancelled":
+                            return True
+                    except Exception:
+                        pass
+                    try:
+                        return _user_cancel_flag_path(user_id).exists()
+                    except Exception:
+                        return False
+
+                def _cancel_and_cleanup(msg: str = "Cancelled by user") -> None:
+                    job.status = "cancelled"
+                    job.stage = "cancelled"
+                    job.error_message = msg
+                    try:
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+
+                    try:
+                        if delete_video1 and video_path.exists():
+                            video_path.unlink()
+                    except Exception:
+                        pass
+                    try:
+                        if delete_video2 and video2_path and video2_path.exists():
+                            video2_path.unlink()
+                    except Exception:
+                        pass
+                    try:
+                        if delete_music and bg_music_path and bg_music_path.exists():
+                            bg_music_path.unlink()
+                    except Exception:
+                        pass
+
+                if _is_cancelled():
+                    _cancel_and_cleanup()
+                    return
+
                 job.stage = 'tts'
                 job.progress = 0.10
                 db.session.commit()
@@ -931,6 +975,13 @@ def generate_video():
                 tts_path = synthesize_tiktok_tts(text=text, voice=voice_code, out_dir=user_temp_dir)
 
                 # Generate captions
+                if _is_cancelled():
+                    try:
+                        tts_path.unlink()
+                    except Exception:
+                        pass
+                    _cancel_and_cleanup()
+                    return
                 job.stage = 'captions'
                 job.progress = 0.22
                 db.session.commit()
@@ -942,6 +993,13 @@ def generate_video():
                     word_spans = allocate_karaoke_word_spans(text=text, total_duration_s=None, audio_path=tts_path)
 
                 # Generate output
+                if _is_cancelled():
+                    try:
+                        tts_path.unlink()
+                    except Exception:
+                        pass
+                    _cancel_and_cleanup()
+                    return
                 job.stage = 'render'
                 job.progress = 0.35
                 db.session.commit()
@@ -973,6 +1031,18 @@ def generate_video():
                 )
 
                 # Update job status
+                if _is_cancelled():
+                    try:
+                        if output_path.exists():
+                            output_path.unlink()
+                    except Exception:
+                        pass
+                    try:
+                        tts_path.unlink()
+                    except Exception:
+                        pass
+                    _cancel_and_cleanup()
+                    return
                 job.status = 'completed'
                 job.result_path = str(output_path)
                 job.completed_at = datetime.utcnow()
@@ -1024,6 +1094,10 @@ def generate_video():
                     job.error_message = "Background video was removed while processing. Please re-upload and try again."
                 elif "failed to read the first frame" in low:
                     job.error_message = "Couldn't read your background video (possibly corrupted/unsupported). Try re-encoding or uploading a different MP4."
+                elif "cancelled by user" in low or "canceled by user" in low:
+                    job.status = "cancelled"
+                    job.stage = "cancelled"
+                    job.error_message = "Cancelled by user"
                 else:
                     job.error_message = msg
 
@@ -1091,6 +1165,98 @@ def get_jobs():
             for r in rows
         ]
     )
+
+def _cleanup_user_job_artifacts(user_id: int) -> None:
+    """Delete user temp/output/upload artifacts (best-effort)."""
+    base = get_user_directory(user_id)
+    for sub in ("uploads", "temp", "outputs"):
+        p = base / sub
+        try:
+            if p.exists():
+                shutil.rmtree(p, ignore_errors=True)
+        except Exception:
+            pass
+
+def _user_cancel_flag_path(user_id: int) -> Path:
+    return get_user_directory(user_id) / "cancel.flag"
+
+def _set_user_cancel_flag(user_id: int, enabled: bool) -> None:
+    p = _user_cancel_flag_path(user_id)
+    if enabled:
+        try:
+            p.write_text("1", encoding="utf-8")
+        except Exception:
+            pass
+        return
+    try:
+        if p.exists():
+            p.unlink()
+    except Exception:
+        pass
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+@app.route('/api/jobs/cancel/<int:job_id>', methods=['POST'])
+@login_required
+def cancel_job(job_id: int):
+    job = VideoJob.query.filter_by(id=job_id, user_id=current_user.id).first()
+    if not job:
+        return jsonify({"success": False, "error": "Job not found"}), 404
+    if job.status in ("completed", "failed", "cancelled"):
+        return jsonify({"success": True})
+    job.status = "cancelled"
+    job.stage = "cancelled"
+    job.error_message = "Cancelled by user"
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    return jsonify({"success": True})
+
+@app.route('/api/jobs/cancel_all', methods=['POST'])
+@login_required
+def cancel_all_jobs():
+    _set_user_cancel_flag(current_user.id, True)
+    try:
+        VideoJob.query.filter(
+            VideoJob.user_id == current_user.id,
+            VideoJob.status.in_(["pending", "processing"]),
+        ).update(
+            {"status": "cancelled", "stage": "cancelled", "error_message": "Cancelled by user"},
+            synchronize_session=False,
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    return jsonify({"success": True})
+
+@app.route('/api/jobs/clear', methods=['POST'])
+@login_required
+def clear_jobs_and_artifacts():
+    # Mark cancellable work first so background threads exit ASAP.
+    _set_user_cancel_flag(current_user.id, True)
+    try:
+        VideoJob.query.filter(
+            VideoJob.user_id == current_user.id,
+            VideoJob.status.in_(["pending", "processing"]),
+        ).update(
+            {"status": "cancelled", "stage": "cancelled", "error_message": "Cancelled by user"},
+            synchronize_session=False,
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    _cleanup_user_job_artifacts(current_user.id)
+
+    try:
+        VideoJob.query.filter(VideoJob.user_id == current_user.id).delete(synchronize_session=False)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    return jsonify({"success": True})
 
 @app.route('/api/download/<int:job_id>')
 @login_required
@@ -1297,6 +1463,9 @@ def generate_batch():
     bg_music_volume = data.get('bg_music_volume', 0.15)
     bg_music_file_id = (data.get('bg_music_file_id') or '').strip() or None
     user_id = current_user.id
+
+    # Clear any previous cancel request for this user when starting a new batch.
+    _set_user_cancel_flag(user_id, False)
     
     if not texts:
         return jsonify({'error': 'No texts provided'}), 400
@@ -1397,6 +1566,13 @@ def generate_batch():
             try:
                 total = len(texts)
                 for i, text in enumerate(texts, 1):
+                    # Allow user to cancel the batch between items.
+                    try:
+                        if _user_cancel_flag_path(user_id).exists():
+                            break
+                    except Exception:
+                        pass
+
                     job_id = str(uuid.uuid4())
                     
                     # Create video job record
@@ -1412,7 +1588,26 @@ def generate_batch():
                     db.session.commit()
                     
                     try:
+                        def _is_cancelled() -> bool:
+                            try:
+                                db.session.refresh(job)
+                                return (job.status or "").lower() == "cancelled"
+                            except Exception:
+                                return False
+
+                        def _cancel_and_cleanup(msg: str = "Cancelled by user") -> None:
+                            job.status = "cancelled"
+                            job.stage = "cancelled"
+                            job.error_message = msg
+                            try:
+                                db.session.commit()
+                            except Exception:
+                                db.session.rollback()
+
                         # Generate TTS
+                        if _is_cancelled():
+                            _cancel_and_cleanup()
+                            continue
                         job.stage = 'tts'
                         job.progress = 0.10
                         db.session.commit()
@@ -1420,6 +1615,13 @@ def generate_batch():
                         tts_path = synthesize_tiktok_tts(text=text, voice=voice_code, out_dir=user_temp_dir)
                         
                         # Generate captions
+                        if _is_cancelled():
+                            try:
+                                tts_path.unlink()
+                            except Exception:
+                                pass
+                            _cancel_and_cleanup()
+                            continue
                         job.stage = 'captions'
                         job.progress = 0.22
                         db.session.commit()
@@ -1431,6 +1633,13 @@ def generate_batch():
                             word_spans = allocate_karaoke_word_spans(text=text, total_duration_s=None, audio_path=tts_path)
                         
                         # Generate output
+                        if _is_cancelled():
+                            try:
+                                tts_path.unlink()
+                            except Exception:
+                                pass
+                            _cancel_and_cleanup()
+                            continue
                         job.stage = 'render'
                         job.progress = 0.35
                         db.session.commit()
@@ -1462,6 +1671,18 @@ def generate_batch():
                         )
                         
                         # Update job status
+                        if _is_cancelled():
+                            try:
+                                if output_path.exists():
+                                    output_path.unlink()
+                            except Exception:
+                                pass
+                            try:
+                                tts_path.unlink()
+                            except Exception:
+                                pass
+                            _cancel_and_cleanup()
+                            continue
                         job.status = 'completed'
                         job.result_path = str(output_path)
                         job.completed_at = datetime.utcnow()
@@ -1495,6 +1716,10 @@ def generate_batch():
                             job.error_message = "Background video was removed while processing. Please re-upload and try again."
                         elif "failed to read the first frame" in low:
                             job.error_message = "Couldn't read your background video (possibly corrupted/unsupported). Try re-encoding or uploading a different MP4."
+                        elif "cancelled by user" in low or "canceled by user" in low:
+                            job.status = "cancelled"
+                            job.stage = "cancelled"
+                            job.error_message = "Cancelled by user"
                         else:
                             job.error_message = msg
                     

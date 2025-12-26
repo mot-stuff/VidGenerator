@@ -570,6 +570,10 @@ function renderJobs(jobs) {
       const download = job.can_download
         ? `<a href="/api/download/${job.id}" class="btn btn-secondary wizard-small" download>Download</a>`
         : '';
+      const cancel =
+        status === 'processing' || status === 'pending'
+          ? `<button class="btn btn-secondary wizard-small" type="button" data-cancel-job="${job.id}">Stop</button>`
+          : '';
       const progressBar =
         status === 'processing' || status === 'pending'
           ? `
@@ -589,17 +593,107 @@ function renderJobs(jobs) {
             </div>
             ${progressBar}
           </div>
-          <div>${download}</div>
+          <div class="wizard-actions" style="gap:8px;">${cancel}${download}</div>
         </div>
       `;
     })
     .join('');
 }
 
+let jobsClickBound = false;
+function bindJobsClickHandlers() {
+  if (jobsClickBound) return;
+  const fileList = qs('#fileList');
+  if (!fileList) return;
+  jobsClickBound = true;
+
+  fileList.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-cancel-job]');
+    if (!btn) return;
+    const id = Number(btn.getAttribute('data-cancel-job'));
+    if (!Number.isFinite(id)) return;
+    btn.disabled = true;
+    try {
+      await fetch(`/api/jobs/cancel/${id}`, { method: 'POST' });
+      updateStatus('🛑 Job cancelled');
+      jobsPollDelayMs = 2000;
+      fetchAndRenderJobs();
+    } catch {
+      updateStatus('Failed to cancel job', true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 let jobsPollTimer = null;
 let jobsPollDelayMs = 2000;
 let lastJobsJson = '';
 let jobsPollingEnabled = true;
+
+function isAutoDownloadEnabled() {
+  const raw = sessionStorage.getItem('autoDownloadEnabled');
+  if (raw === null) return true;
+  return raw === '1';
+}
+
+function setAutoDownloadEnabled(enabled) {
+  sessionStorage.setItem('autoDownloadEnabled', enabled ? '1' : '0');
+}
+
+function getAutoDownloadedJobIds() {
+  try {
+    const raw = sessionStorage.getItem('autoDownloadedJobIds');
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.map((x) => String(x)) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function persistAutoDownloadedJobIds(set) {
+  try {
+    const arr = Array.from(set).slice(-200);
+    sessionStorage.setItem('autoDownloadedJobIds', JSON.stringify(arr));
+  } catch {
+    // ignore
+  }
+}
+
+let autoDownloadInFlight = false;
+function triggerDownload(url) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => a.remove(), 1000);
+}
+
+function maybeAutoDownload(jobs) {
+  if (!isAutoDownloadEnabled()) return;
+  if (autoDownloadInFlight) return;
+  if (!Array.isArray(jobs)) return;
+
+  const done = getAutoDownloadedJobIds();
+  const next = jobs.find((j) => j && j.can_download && j.id != null && !done.has(String(j.id)));
+  if (!next) return;
+
+  autoDownloadInFlight = true;
+  done.add(String(next.id));
+  persistAutoDownloadedJobIds(done);
+
+  try {
+    triggerDownload(`/api/download/${next.id}`);
+  } catch {
+    // ignore
+  } finally {
+    setTimeout(() => {
+      autoDownloadInFlight = false;
+    }, 1500);
+  }
+}
 
 async function fetchAndRenderJobs() {
   if (!jobsPollingEnabled) return;
@@ -613,6 +707,7 @@ async function fetchAndRenderJobs() {
       lastJobsJson = json;
       renderJobs(parsed.data);
     }
+    maybeAutoDownload(parsed.data);
 
     const hasActive = parsed.data.some((j) => j.status === 'processing' || j.status === 'pending');
     if (hasActive) jobsPollDelayMs = 2000;
@@ -765,6 +860,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const backBtn = qs('#backBtn');
   const nextBtn = qs('#nextBtn');
   const refreshJobsBtn = qs('#refreshJobsBtn');
+  const cancelAllJobsBtn = qs('#cancelAllJobsBtn');
+  const clearJobsBtn = qs('#clearJobsBtn');
+  const autoDownloadToggle = qs('#autoDownloadToggle');
   const addToBatchBtn = qs('#addToBatchBtn');
   const clearTextsBtn = qs('#clearTextsBtn');
   const csvFile = qs('#csvFile');
@@ -780,6 +878,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
   renderWizard(state);
   refreshYoutubeUi();
+  bindJobsClickHandlers();
+
+  if (autoDownloadToggle) {
+    autoDownloadToggle.checked = isAutoDownloadEnabled();
+    autoDownloadToggle.addEventListener('change', () => {
+      setAutoDownloadEnabled(Boolean(autoDownloadToggle.checked));
+    });
+  }
+
+  if (cancelAllJobsBtn) {
+    cancelAllJobsBtn.addEventListener('click', async () => {
+      cancelAllJobsBtn.disabled = true;
+      try {
+        await fetch('/api/jobs/cancel_all', { method: 'POST' });
+        updateStatus('🛑 Stopping jobs...');
+        jobsPollDelayMs = 2000;
+        fetchAndRenderJobs();
+      } catch {
+        updateStatus('Failed to stop jobs', true);
+      } finally {
+        cancelAllJobsBtn.disabled = false;
+      }
+    });
+  }
+
+  if (clearJobsBtn) {
+    clearJobsBtn.addEventListener('click', async () => {
+      const ok = window.confirm('Clear the entire queue and delete uploads/outputs for your account?');
+      if (!ok) return;
+      clearJobsBtn.disabled = true;
+      try {
+        await fetch('/api/jobs/clear', { method: 'POST' });
+        sessionStorage.removeItem('autoDownloadedJobIds');
+        lastJobsJson = '';
+        updateStatus('✅ Queue cleared');
+        jobsPollDelayMs = 2000;
+        fetchAndRenderJobs();
+      } catch {
+        updateStatus('Failed to clear queue', true);
+      } finally {
+        clearJobsBtn.disabled = false;
+      }
+    });
+  }
 
   if (bgEnabled) {
     bgEnabled.addEventListener('change', () => {
