@@ -13,7 +13,7 @@
     {% if current_user.is_authenticated %}
     <nav class="nav">
         <a class="brand" href="{{ url_for('dashboard') }}">
-            <img class="brand-logo" src="{{ url_for('static', filename='images/logo.png') }}" alt="mindsrot.app">
+            <img class="brand-logo" src="{{ url_for('static', filename='images/logo.png') }}" alt="mindsrot.app logo">
         </a>
         <div class="user-info">
             Welcome, {{ current_user.email }}
