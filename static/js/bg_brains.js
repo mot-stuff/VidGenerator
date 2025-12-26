@@ -49,7 +49,7 @@
     const items = [];
 
     for (let i = 0; i < target; i++) {
-      const size = rand(22, 48);
+      const size = rand(26, 58);
       const r = size * 0.5;
       const speed = rand(12, 42);
       const angle = rand(0, Math.PI * 2);
@@ -62,7 +62,7 @@
         size,
         rot: rand(0, Math.PI * 2),
         vr: rand(-0.5, 0.5),
-        alpha: rand(0.10, 0.22),
+        alpha: rand(0.22, 0.38),
       });
     }
 
