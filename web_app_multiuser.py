@@ -296,7 +296,7 @@ def dashboard():
 @app.route('/shop')
 @login_required
 def shop():
-    return render_template('shop.html')
+    return redirect(url_for('dashboard'))
 
 
 @app.route('/support')

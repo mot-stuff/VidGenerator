@@ -1,0 +1,24 @@
+{% from "_components.html" import collapsible %}
+
+{% call collapsible('Shop', open=False, subtitle='Upgrade your plan') %}
+<div class="content">
+    <div class="section">
+        <h2>Mindsrot Pro</h2>
+        <div class="wizard-hint">Includes <strong>12</strong> daily generations.</div>
+
+        <div style="margin-top: 12px;">
+            <stripe-buy-button
+                buy-button-id="buy_btn_1SiRNLCvk40bBS5zvypq3ihj"
+                publishable-key="pk_live_51Oj9sQCvk40bBS5zVbuPx8jYte3g0NfNy01Azodr9iGeqxZd12LvVvepi2iHyOCt75g3ZuY5gJSVuIST7ggpPMiI000X6Deb7h"
+            >
+            </stripe-buy-button>
+        </div>
+
+        <div class="wizard-hint" style="margin-top: 12px;">
+            After checkout, if your account doesn't update automatically, message support with your email.
+        </div>
+    </div>
+</div>
+{% endcall %}
+
+
