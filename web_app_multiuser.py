@@ -1025,7 +1025,7 @@ def youtube_status():
 
     note = None
     if eligible and creds_path.exists() and not token_path.exists():
-        note = "Token missing (headless servers require uploading youtube_token.json)"
+        note = "Not connected yet"
 
     return jsonify({
         "success": True,
@@ -1137,37 +1137,6 @@ def youtube_oauth_callback():
         flash("YouTube connect failed. Double-check your OAuth client and redirect URI.")
 
     return redirect(url_for("dashboard"))
-
-
-@app.route('/api/youtube/upload', methods=['POST'])
-@login_required
-def youtube_upload_files():
-    if not _is_youtube_eligible():
-        return jsonify({"success": False, "error": "Pro plan required"}), 403
-
-    if "credentials" not in request.files:
-        return jsonify({"success": False, "error": "Missing credentials file"}), 400
-
-    user_dir = get_user_directory(current_user.id, "youtube")
-    creds_file = request.files["credentials"]
-    token_file = request.files.get("token")
-
-    try:
-        creds_bytes = creds_file.read()
-        creds_json = json.loads(creds_bytes.decode("utf-8"))
-        (user_dir / "youtube_credentials.json").write_text(json.dumps(creds_json, indent=2), encoding="utf-8")
-    except Exception:
-        return jsonify({"success": False, "error": "Invalid credentials JSON"}), 400
-
-    if token_file:
-        try:
-            token_bytes = token_file.read()
-            token_json = json.loads(token_bytes.decode("utf-8"))
-            (user_dir / "youtube_token.json").write_text(json.dumps(token_json, indent=2), encoding="utf-8")
-        except Exception:
-            return jsonify({"success": False, "error": "Invalid token JSON"}), 400
-
-    return jsonify({"success": True})
 
 
 @app.route('/api/youtube/auto_upload', methods=['POST'])

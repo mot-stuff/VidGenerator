@@ -9,10 +9,13 @@
         <h2>About</h2>
         <div class="wizard-hint">
             Brain Blender turns text into short-form videos with TTS + your background footage.
-            Upload a video, paste or batch-upload text, generate, then download from the queue.
+            Add text (single or batch), pick a background video (preset or upload), then generate and download from the queue.
         </div>
         <div class="wizard-hint">
             Downloads auto-expire, so grab completed jobs quickly.
+        </div>
+        <div class="wizard-hint">
+            Upload/YouTube: connecting YouTube requires your own Google OAuth Client ID + Client Secret (we do not provide one).
         </div>
     </div>
 
@@ -197,33 +200,6 @@
             </div>
 
             <div id="ytStatusInfo" class="file-info hidden"></div>
-
-            <details class="collapsible" style="margin-top: 14px;" {% if not is_pro %}disabled{% endif %}>
-                <summary class="collapsible-summary">
-                    <div class="collapsible-summary-left">
-                        <span class="collapsible-chevron" aria-hidden="true"></span>
-                        <div class="collapsible-summary-text">
-                            <div class="collapsible-title">Advanced: JSON upload</div>
-                            <div class="collapsible-subtitle">Only needed for headless servers</div>
-                        </div>
-                    </div>
-                </summary>
-                <div class="collapsible-body">
-                    <div class="content">
-                        <div class="form-group" style="margin-top: 12px;">
-                            <label for="ytCredentialsFile">youtube_credentials.json</label>
-                            <input type="file" id="ytCredentialsFile" accept=".json" {% if not is_pro %}disabled{% endif %}>
-                        </div>
-                        <div class="form-group">
-                            <label for="ytTokenFile">youtube_token.json</label>
-                            <input type="file" id="ytTokenFile" accept=".json" {% if not is_pro %}disabled{% endif %}>
-                        </div>
-                        <div class="wizard-actions">
-                            <button class="btn btn-secondary" type="button" id="ytUploadBtn" {% if not is_pro %}disabled{% endif %}>Upload JSON files</button>
-                        </div>
-                    </div>
-                </div>
-            </details>
         </div>
     </div>
 </div>

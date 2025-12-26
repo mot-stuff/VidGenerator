@@ -637,9 +637,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearTextsBtn = qs('#clearTextsBtn');
   const csvFile = qs('#csvFile');
   const generateBtn = qs('#generateBtn');
-  const ytUploadBtn = qs('#ytUploadBtn');
-  const ytCreds = qs('#ytCredentialsFile');
-  const ytToken = qs('#ytTokenFile');
   const ytAutoUpload = qs('#ytAutoUpload');
   const ytSaveCredsBtn = qs('#ytSaveCredsBtn');
   const ytConnectBtn = qs('#ytConnectBtn');
@@ -840,34 +837,6 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshJobsBtn.addEventListener('click', async () => {
       jobsPollDelayMs = 2000;
       await fetchAndRenderJobs();
-    });
-  }
-
-  if (ytUploadBtn) {
-    ytUploadBtn.addEventListener('click', async () => {
-      if (!isProUser()) return;
-      if (!ytCreds || !ytCreds.files || !ytCreds.files[0]) {
-        updateStatus('Select youtube_credentials.json first', true);
-        return;
-      }
-
-      const form = new FormData();
-      form.append('credentials', ytCreds.files[0]);
-      if (ytToken && ytToken.files && ytToken.files[0]) {
-        form.append('token', ytToken.files[0]);
-      }
-
-      updateStatus('Saving YouTube files...');
-      const r = await fetch('/api/youtube/upload', { method: 'POST', body: form });
-      const parsed = await parseApiResponse(r);
-      if (!parsed.ok || !parsed.data || !parsed.data.success) {
-        const msg = parsed.data && parsed.data.error ? parsed.data.error : parsed.raw ? parsed.raw.slice(0, 200) : 'Failed';
-        updateStatus(`❌ YouTube save failed (${parsed.status}): ${msg}`, true);
-        await refreshYoutubeUi();
-        return;
-      }
-      updateStatus('✅ YouTube files saved');
-      await refreshYoutubeUi();
     });
   }
 
