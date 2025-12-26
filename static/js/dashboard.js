@@ -114,9 +114,27 @@ function renderWizard(state) {
   });
 
   // Panels
-  setHidden(qs('#step1Panel'), state.step !== 1);
-  setHidden(qs('#step2Panel'), state.step !== 2);
-  setHidden(qs('#step3Panel'), state.step !== 3);
+  const panels = [
+    { step: 1, el: qs('#step1Panel') },
+    { step: 2, el: qs('#step2Panel') },
+    { step: 3, el: qs('#step3Panel') },
+  ];
+
+  panels.forEach(({ step, el }) => {
+    if (!el) return;
+    const isActive = step === state.step;
+    if (isActive) {
+      // animate in
+      el.classList.add('is-enter');
+      el.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => el.classList.remove('is-enter'));
+      });
+    } else {
+      el.classList.add('hidden');
+      el.classList.remove('is-enter');
+    }
+  });
 
   // Buttons
   const backBtn = qs('#backBtn');

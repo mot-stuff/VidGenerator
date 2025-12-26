@@ -76,11 +76,14 @@ body {
 }
 
 .brand-logo {
-    height: 32px;
-    width: 32px;
+    height: 34px;
+    width: 140px;
     border-radius: 10px;
     display: block;
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+    object-fit: cover;
+    object-position: left center;
+    background: rgba(2, 6, 23, 0.35);
 }
 
 .brand-name {
@@ -416,6 +419,18 @@ input[type="checkbox"] {
     margin-bottom: 14px;
 }
 
+.wizard-panel {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 180ms ease, transform 180ms ease;
+    will-change: opacity, transform;
+}
+
+.wizard-panel.is-enter {
+    opacity: 0;
+    transform: translateY(8px);
+}
+
 .wizard-row {
     display: flex;
     gap: 14px;
@@ -545,8 +560,7 @@ input[type="checkbox"] {
         display: none;
     }
     .brand-logo {
-        height: 30px;
-        width: 30px;
+        height: 28px;
         border-radius: 9px;
     }
     .wizard-stepper {
