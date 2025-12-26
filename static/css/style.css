@@ -142,6 +142,67 @@ body {
     overflow: hidden;
 }
 
+.collapsible {
+    border-bottom: 1px solid var(--border);
+}
+
+.collapsible:last-child {
+    border-bottom: none;
+}
+
+.collapsible-summary {
+    cursor: pointer;
+    user-select: none;
+    padding: 16px 18px;
+    background:
+        radial-gradient(1000px 260px at 18% 0%, rgba(255, 95, 174, 0.14), transparent 62%),
+        radial-gradient(1000px 260px at 82% 0%, rgba(124, 58, 237, 0.14), transparent 62%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.82));
+    color: var(--text);
+}
+
+.collapsible-summary::-webkit-details-marker {
+    display: none;
+}
+
+.collapsible-summary-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.collapsible-chevron {
+    width: 10px;
+    height: 10px;
+    border-right: 2px solid rgba(15, 23, 42, 0.55);
+    border-bottom: 2px solid rgba(15, 23, 42, 0.55);
+    transform: rotate(-45deg);
+    transition: transform 140ms ease;
+    flex: 0 0 auto;
+}
+
+.collapsible[open] .collapsible-chevron {
+    transform: rotate(45deg);
+}
+
+.collapsible-title {
+    font-weight: 900;
+    letter-spacing: 0.2px;
+    font-size: 1.25rem;
+    line-height: 1.35rem;
+}
+
+.collapsible-subtitle {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.2rem;
+}
+
+.collapsible-body {
+    border-top: 1px solid var(--border);
+}
+
 /* Slimmer nav buttons so we can grow the logo without inflating header height */
 .nav .btn {
     padding: 8px 12px;

@@ -1,19 +1,38 @@
 {% extends "base.html" %}
+{% from "_components.html" import collapsible %}
 
 {% block title %}Dashboard - TTS Shorts Generator{% endblock %}
 
 {% block content %}
 <div class="container">
-    <div class="header">
-        <h1>Brain Blender</h1>
-        <p>Logged in as {{ user.email }}</p>
-        
-        <!-- User Info -->
-        <div class="user-stats">
-            <span>Logged in as: {{ user.email }}</span>
+    {% call collapsible('Profile', open=True) %}
+    <div class="content">
+        <div class="section">
+            <h2>Account</h2>
+            <div class="wizard-summary">
+                <div class="wizard-summary-row"><div>Email</div><div>{{ user.email }}</div></div>
+                <div class="wizard-summary-row"><div>Remaining today</div><div>{{ user.remaining_daily_quota() }} / {{ user.get_daily_quota() }}</div></div>
+                <div class="wizard-summary-row"><div>Plan</div><div>{{ user.subscription_tier }}</div></div>
+            </div>
+            <div class="wizard-hint">
+                Quota resets daily (UTC). Admin accounts ignore daily quota.
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>About</h2>
+            <div class="wizard-hint">
+                Brain Blender turns text into short-form videos with TTS + your background footage.
+                Upload a video, paste or batch-upload text, generate, then download from the queue.
+            </div>
+            <div class="wizard-hint">
+                Downloads auto-expire, so grab completed jobs quickly.
+            </div>
         </div>
     </div>
-    
+    {% endcall %}
+
+    {% call collapsible('Brain Blender', open=False) %}
     <div class="content">
         <div class="wizard-stepper" id="wizardStepper">
             <button class="wizard-step" type="button" data-step="1">1. Text</button>
@@ -117,7 +136,7 @@
             </div>
         </div>
     </div>
-    
+
     <div class="status-bar">
         <div class="status-indicator">
             <div class="status-dot"></div>
@@ -128,6 +147,7 @@
             <button class="btn" type="button" id="nextBtn">Next</button>
         </div>
     </div>
+    {% endcall %}
 </div>
 {% endblock %}
 

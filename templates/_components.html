@@ -1,0 +1,19 @@
+{% macro collapsible(title, open=False, subtitle=None) -%}
+<details class="collapsible" {% if open %}open{% endif %}>
+    <summary class="collapsible-summary">
+        <div class="collapsible-summary-left">
+            <span class="collapsible-chevron" aria-hidden="true"></span>
+            <div class="collapsible-summary-text">
+                <div class="collapsible-title">{{ title }}</div>
+                {% if subtitle %}
+                <div class="collapsible-subtitle">{{ subtitle }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </summary>
+    <div class="collapsible-body">
+        {{ caller() }}
+    </div>
+</details>
+{%- endmacro %}
+
