@@ -630,6 +630,7 @@ let jobsPollTimer = null;
 let jobsPollDelayMs = 2000;
 let lastJobsJson = '';
 let jobsPollingEnabled = true;
+let lastJobsData = [];
 
 function isAutoDownloadEnabled() {
   const raw = sessionStorage.getItem('autoDownloadEnabled');
@@ -702,6 +703,7 @@ async function fetchAndRenderJobs() {
     const parsed = await parseApiResponse(r);
     if (!parsed.ok || !Array.isArray(parsed.data)) return;
 
+    lastJobsData = parsed.data;
     const json = JSON.stringify(parsed.data);
     if (json !== lastJobsJson) {
       lastJobsJson = json;
@@ -883,7 +885,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (autoDownloadToggle) {
     autoDownloadToggle.checked = isAutoDownloadEnabled();
     autoDownloadToggle.addEventListener('change', () => {
-      setAutoDownloadEnabled(Boolean(autoDownloadToggle.checked));
+      const enabled = Boolean(autoDownloadToggle.checked);
+      setAutoDownloadEnabled(enabled);
+      // Best-effort: trigger the first download immediately on this user gesture so the browser allows it.
+      if (enabled) {
+        maybeAutoDownload(lastJobsData);
+      }
     });
   }
 
