@@ -955,12 +955,44 @@ def generate_video():
             )
             db.session.add(job)
             db.session.commit()
+            job_db_id = int(job.id)
 
             try:
+                def _update_job(fields: dict) -> bool:
+                    try:
+                        updated = (
+                            db.session.query(VideoJob)
+                            .filter(VideoJob.id == job_db_id, VideoJob.user_id == user_id)
+                            .update(fields, synchronize_session=False)
+                        )
+                        db.session.commit()
+                        return int(updated or 0) > 0
+                    except Exception:
+                        try:
+                            db.session.rollback()
+                        except Exception:
+                            pass
+                        return False
+
+                def _job_exists() -> bool:
+                    try:
+                        return (
+                            db.session.query(VideoJob.id)
+                            .filter(VideoJob.id == job_db_id, VideoJob.user_id == user_id)
+                            .first()
+                            is not None
+                        )
+                    except Exception:
+                        return False
+
                 def _is_cancelled() -> bool:
                     try:
-                        db.session.refresh(job)
-                        if (job.status or "").lower() == "cancelled":
+                        st = (
+                            db.session.query(VideoJob.status)
+                            .filter(VideoJob.id == job_db_id, VideoJob.user_id == user_id)
+                            .scalar()
+                        )
+                        if (st or "").lower() == "cancelled":
                             return True
                     except Exception:
                         pass
@@ -970,13 +1002,7 @@ def generate_video():
                         return False
 
                 def _cancel_and_cleanup(msg: str = "Cancelled by user") -> None:
-                    job.status = "cancelled"
-                    job.stage = "cancelled"
-                    job.error_message = msg
-                    try:
-                        db.session.commit()
-                    except Exception:
-                        db.session.rollback()
+                    _update_job({"status": "cancelled", "stage": "cancelled", "error_message": msg})
 
                     try:
                         if delete_video1 and video_path.exists():
@@ -997,10 +1023,12 @@ def generate_video():
                 if _is_cancelled():
                     _cancel_and_cleanup()
                     return
+                if not _job_exists():
+                    # Queue was cleared; stop work.
+                    return
 
-                job.stage = 'tts'
-                job.progress = 0.10
-                db.session.commit()
+                if not _update_job({"stage": "tts", "progress": 0.10}):
+                    return
                 # Generate TTS
                 voice_code = "en_us_002"
                 tts_path = synthesize_tiktok_tts(text=text, voice=voice_code, out_dir=user_temp_dir)
@@ -1013,9 +1041,12 @@ def generate_video():
                         pass
                     _cancel_and_cleanup()
                     return
-                job.stage = 'captions'
-                job.progress = 0.22
-                db.session.commit()
+                if not _update_job({"stage": "captions", "progress": 0.22}):
+                    try:
+                        tts_path.unlink()
+                    except Exception:
+                        pass
+                    return
                 spans = allocate_caption_spans(text=text, total_duration_s=None, audio_path=tts_path)
                 try:
                     words = whisper_word_timestamps(str(tts_path), language="en", original_text=text)
@@ -1031,9 +1062,12 @@ def generate_video():
                         pass
                     _cancel_and_cleanup()
                     return
-                job.stage = 'render'
-                job.progress = 0.35
-                db.session.commit()
+                if not _update_job({"stage": "render", "progress": 0.35}):
+                    try:
+                        tts_path.unlink()
+                    except Exception:
+                        pass
+                    return
                 output_filename = f"{job_id}_output.mp4"
                 output_path = user_output_dir / output_filename
 
@@ -1075,11 +1109,13 @@ def generate_video():
                         pass
                     _cancel_and_cleanup()
                     return
-                job.status = 'completed'
-                job.result_path = str(output_path)
-                job.completed_at = datetime.utcnow()
-                job.stage = 'done'
-                job.progress = 1.0
+                _update_job({
+                    "status": "completed",
+                    "result_path": str(output_path),
+                    "completed_at": datetime.utcnow(),
+                    "stage": "done",
+                    "progress": 1.0,
+                })
 
                 # Optional: enqueue for YouTube upload (Pro only, requires uploaded token)
                 try:
@@ -1118,24 +1154,24 @@ def generate_video():
                     pass
 
             except Exception as e:
-                job.status = 'failed'
-                job.stage = 'failed'
                 msg = str(e)
                 low = msg.lower()
+                status = 'failed'
+                stage = 'failed'
+                err = msg
                 if "could not be found" in low or "no such file" in low:
-                    job.error_message = "Background video was removed while processing. Please re-upload and try again."
+                    err = "Background video was removed while processing. Please re-upload and try again."
                 elif "failed to read the first frame" in low:
-                    job.error_message = "Couldn't read your background video (possibly corrupted/unsupported). Try re-encoding or uploading a different MP4."
+                    err = "Couldn't read your background video (possibly corrupted/unsupported). Try re-encoding or uploading a different MP4."
                 elif "stdout" in low and "nonetype" in low:
-                    job.error_message = "FFmpeg couldn't read the selected background video (invalid/corrupt encoding). If this is a preset, re-upload/replace it with a standard H.264/AAC MP4."
+                    err = "FFmpeg couldn't read the selected background video (invalid/corrupt encoding). If this is a preset, re-upload/replace it with a standard H.264/AAC MP4."
                 elif "cancelled by user" in low or "canceled by user" in low:
-                    job.status = "cancelled"
-                    job.stage = "cancelled"
-                    job.error_message = "Cancelled by user"
+                    status = "cancelled"
+                    stage = "cancelled"
+                    err = "Cancelled by user"
                 else:
-                    job.error_message = msg
-
-            db.session.commit()
+                    err = msg
+                _update_job({"status": status, "stage": stage, "error_message": err})
             db.session.remove()
     
     threading.Thread(
@@ -1686,31 +1722,63 @@ def generate_batch():
                     )
                     db.session.add(job)
                     db.session.commit()
+                    job_db_id = int(job.id)
                     
                     try:
+                        def _update_job(fields: dict) -> bool:
+                            try:
+                                updated = (
+                                    db.session.query(VideoJob)
+                                    .filter(VideoJob.id == job_db_id, VideoJob.user_id == user_id)
+                                    .update(fields, synchronize_session=False)
+                                )
+                                db.session.commit()
+                                return int(updated or 0) > 0
+                            except Exception:
+                                try:
+                                    db.session.rollback()
+                                except Exception:
+                                    pass
+                                return False
+
+                        def _job_exists() -> bool:
+                            try:
+                                return (
+                                    db.session.query(VideoJob.id)
+                                    .filter(VideoJob.id == job_db_id, VideoJob.user_id == user_id)
+                                    .first()
+                                    is not None
+                                )
+                            except Exception:
+                                return False
+
                         def _is_cancelled() -> bool:
                             try:
-                                db.session.refresh(job)
-                                return (job.status or "").lower() == "cancelled"
+                                st = (
+                                    db.session.query(VideoJob.status)
+                                    .filter(VideoJob.id == job_db_id, VideoJob.user_id == user_id)
+                                    .scalar()
+                                )
+                                if (st or "").lower() == "cancelled":
+                                    return True
+                            except Exception:
+                                pass
+                            try:
+                                return _user_cancel_flag_path(user_id).exists()
                             except Exception:
                                 return False
 
                         def _cancel_and_cleanup(msg: str = "Cancelled by user") -> None:
-                            job.status = "cancelled"
-                            job.stage = "cancelled"
-                            job.error_message = msg
-                            try:
-                                db.session.commit()
-                            except Exception:
-                                db.session.rollback()
+                            _update_job({"status": "cancelled", "stage": "cancelled", "error_message": msg})
 
                         # Generate TTS
                         if _is_cancelled():
                             _cancel_and_cleanup()
                             continue
-                        job.stage = 'tts'
-                        job.progress = 0.10
-                        db.session.commit()
+                        if not _job_exists():
+                            break
+                        if not _update_job({"stage": "tts", "progress": 0.10}):
+                            break
                         voice_code = "en_us_002"
                         tts_path = synthesize_tiktok_tts(text=text, voice=voice_code, out_dir=user_temp_dir)
                         
@@ -1722,9 +1790,12 @@ def generate_batch():
                                 pass
                             _cancel_and_cleanup()
                             continue
-                        job.stage = 'captions'
-                        job.progress = 0.22
-                        db.session.commit()
+                        if not _update_job({"stage": "captions", "progress": 0.22}):
+                            try:
+                                tts_path.unlink()
+                            except Exception:
+                                pass
+                            break
                         spans = allocate_caption_spans(text=text, total_duration_s=None, audio_path=tts_path)
                         try:
                             words = whisper_word_timestamps(str(tts_path), language="en", original_text=text)
@@ -1740,9 +1811,12 @@ def generate_batch():
                                 pass
                             _cancel_and_cleanup()
                             continue
-                        job.stage = 'render'
-                        job.progress = 0.35
-                        db.session.commit()
+                        if not _update_job({"stage": "render", "progress": 0.35}):
+                            try:
+                                tts_path.unlink()
+                            except Exception:
+                                pass
+                            break
                         output_filename = f"batch_{i:03d}_{job_id}_output.mp4"
                         output_path = user_output_dir / output_filename
                         
@@ -1784,11 +1858,13 @@ def generate_batch():
                                 pass
                             _cancel_and_cleanup()
                             continue
-                        job.status = 'completed'
-                        job.result_path = str(output_path)
-                        job.completed_at = datetime.utcnow()
-                        job.stage = 'done'
-                        job.progress = 1.0
+                        _update_job({
+                            "status": "completed",
+                            "result_path": str(output_path),
+                            "completed_at": datetime.utcnow(),
+                            "stage": "done",
+                            "progress": 1.0,
+                        })
 
                         # Optional: enqueue for YouTube upload (Pro only, requires uploaded token)
                         try:
@@ -1809,24 +1885,27 @@ def generate_batch():
                             pass
                             
                     except Exception as e:
-                        job.status = 'failed'
-                        job.stage = 'failed'
                         msg = str(e)
                         low = msg.lower()
+                        status = 'failed'
+                        stage = 'failed'
+                        err = msg
                         if "could not be found" in low or "no such file" in low:
-                            job.error_message = "Background video was removed while processing. Please re-upload and try again."
+                            err = "Background video was removed while processing. Please re-upload and try again."
                         elif "failed to read the first frame" in low:
-                            job.error_message = "Couldn't read your background video (possibly corrupted/unsupported). Try re-encoding or uploading a different MP4."
+                            err = "Couldn't read your background video (possibly corrupted/unsupported). Try re-encoding or uploading a different MP4."
                         elif "stdout" in low and "nonetype" in low:
-                            job.error_message = "FFmpeg couldn't read the selected background video (invalid/corrupt encoding). If this is a preset, re-upload/replace it with a standard H.264/AAC MP4."
+                            err = "FFmpeg couldn't read the selected background video (invalid/corrupt encoding). If this is a preset, re-upload/replace it with a standard H.264/AAC MP4."
                         elif "cancelled by user" in low or "canceled by user" in low:
-                            job.status = "cancelled"
-                            job.stage = "cancelled"
-                            job.error_message = "Cancelled by user"
+                            status = "cancelled"
+                            stage = "cancelled"
+                            err = "Cancelled by user"
                         else:
-                            job.error_message = msg
-                    
-                    db.session.commit()
+                            err = msg
+                        try:
+                            _update_job({"status": status, "stage": stage, "error_message": err})
+                        except Exception:
+                            pass
                     
                     # Small delay between videos
                     if i < total:
