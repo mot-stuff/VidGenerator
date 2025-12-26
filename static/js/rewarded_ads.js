@@ -169,17 +169,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   const watchBtn = qs('#watchAdBtn');
   if (!container || !watchBtn) return;
 
-  if (!adUnitPath) {
-    watchBtn.disabled = true;
-    return;
-  }
-
   const user = await fetchStatus();
   if (user) updateProfileQuotaUi(user);
 
   const canShow = user && !user.is_admin && Number(user.daily_remaining ?? 0) <= 0 && Number(user.bonus_credits ?? 0) <= 0;
   setHidden(container, !canShow);
+  if (!canShow) return;
 
+  if (!adUnitPath) {
+    watchBtn.disabled = true;
+    if (!qs('#rewardedConfigMissingHint')) {
+      const hint = document.createElement('div');
+      hint.id = 'rewardedConfigMissingHint';
+      hint.className = 'wizard-hint';
+      hint.style.marginTop = '8px';
+      hint.textContent = 'Rewarded ads are not configured. Set GAM_REWARDED_AD_UNIT_PATH on the server and restart.';
+      watchBtn.insertAdjacentElement('afterend', hint);
+    }
+    return;
+  }
+
+  watchBtn.disabled = false;
   watchBtn.addEventListener('click', async () => {
     await startRewardedFlow({ adUnitPath });
   });
