@@ -353,6 +353,7 @@ def compose_video_with_tts(
     max_duration_s: float | None = None,
     chosen_start_time: float | None = None,
     crf: int = 15,
+    encode_preset: str = "faster",
     video_bitrate: str | None = None,
     karaoke_word_spans: Sequence[Dict[str, float | str | int]] | None = None,
     add_background_music: bool = True,
@@ -455,13 +456,14 @@ def compose_video_with_tts(
         devnull = open(os.devnull, 'w')
         
         try:
+            threads = max(1, min(8, int(os.cpu_count() or 1)))
             with redirect_stdout(devnull), redirect_stderr(devnull):
                 final.write_videofile(
                     str(out_path),
                     codec="libx264",
                     audio_codec="aac",
-                    preset="faster",
-                    threads=4,
+                    preset=str(encode_preset or "faster"),
+                    threads=threads,
                     fps=fps_out,
                     bitrate=video_bitrate,
                     ffmpeg_params=[

@@ -306,6 +306,18 @@ def _resolve_preset_video(preset_id: str | None, slot: str) -> Path | None:
 
     return _get_preset_video_path("PRESET_VIDEO1_PATH")
 
+def _encode_settings_from_quality(v: object) -> tuple[int, str]:
+    try:
+        q = int(float(v))  # allow "50" or 50.0
+    except Exception:
+        q = 50
+    q = max(0, min(100, q))
+    if q <= 33:
+        return 30, "ultrafast"
+    if q <= 66:
+        return 23, "faster"
+    return 18, "medium"
+
 def _cleanup_expired_user_artifacts(user_id: int, ttl_s: int = 120) -> None:
     now_ts = time.time()
     yt_keep = False
@@ -824,6 +836,7 @@ def generate_video():
     bg_music_enabled = bool(data.get('bg_music_enabled', False))
     bg_music_volume = data.get('bg_music_volume', 0.15)
     bg_music_file_id = (data.get('bg_music_file_id') or '').strip() or None
+    video_quality = data.get('video_quality', 50)
     user_id = current_user.id
 
     # Clear any previous cancel request for this user when starting a new job.
@@ -877,6 +890,8 @@ def generate_video():
         if not p.exists():
             return jsonify({'error': 'Background music file not found'}), 400
         bg_music_path = p
+
+    crf, encode_preset = _encode_settings_from_quality(video_quality)
     
     def generate_worker(
         user_id: int,
@@ -1034,7 +1049,8 @@ def generate_video():
                     caption_spans=spans,
                     output_path=output_path,
                     chosen_start_time=random_start,
-                    crf=18,
+                    crf=crf,
+                    encode_preset=encode_preset,
                     video_bitrate=None,
                     karaoke_word_spans=word_spans,
                     add_background_music=bool(bg_music_enabled),
@@ -1543,6 +1559,7 @@ def generate_batch():
     bg_music_enabled = bool(data.get('bg_music_enabled', False))
     bg_music_volume = data.get('bg_music_volume', 0.15)
     bg_music_file_id = (data.get('bg_music_file_id') or '').strip() or None
+    video_quality = data.get('video_quality', 50)
     user_id = current_user.id
 
     # Clear any previous cancel request for this user when starting a new batch.
@@ -1599,6 +1616,8 @@ def generate_batch():
         if not p.exists():
             return jsonify({'error': 'Background music file not found'}), 400
         bg_music_path = p
+
+    crf, encode_preset = _encode_settings_from_quality(video_quality)
     
     def batch_worker(
         user_id: int,
@@ -1739,7 +1758,8 @@ def generate_batch():
                             caption_spans=spans,
                             output_path=output_path,
                             chosen_start_time=random_start,
-                            crf=18,
+                            crf=crf,
+                            encode_preset=encode_preset,
                             video_bitrate=None,
                             karaoke_word_spans=word_spans,
                             add_background_music=bool(bg_music_enabled),

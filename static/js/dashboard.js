@@ -31,6 +31,7 @@ function defaultState() {
     videos: { video1: null, video2: null }, // file_id values
     videoSources: { video1: 'upload', video2: 'upload' }, // upload | preset
     presetIds: { video1: 'minecraft_parkour', video2: 'minecraft_parkour' },
+    videoQuality: 50, // 0..100
   };
 }
 
@@ -122,7 +123,19 @@ function normalizeState(state) {
     state.bgMusic.volume = Number.isFinite(v) ? Math.max(0, Math.min(0.4, v)) : 0.15;
   }
   if (!state.bgMusic.fileId) state.bgMusic.fileId = null;
+  {
+    const q = Number(state.videoQuality);
+    state.videoQuality = Number.isFinite(q) ? Math.max(0, Math.min(100, Math.round(q))) : 50;
+  }
   return state;
+}
+
+function qualityLabelFromValue(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 'Balanced';
+  if (n <= 33) return 'Fast';
+  if (n <= 66) return 'Balanced';
+  return 'High';
 }
 
 function presetLabelFromId(id) {
@@ -217,6 +230,12 @@ function renderWizard(state) {
   if (splitEl) splitEl.checked = Boolean(state.splitScreen);
   const video2Section = qs('#video2Section');
   if (video2Section) video2Section.style.display = state.splitScreen ? 'block' : 'none';
+
+  // Quality / speed
+  const qEl = qs('#videoQuality');
+  const qLbl = qs('#videoQualityLabel');
+  if (qEl) qEl.value = String(state.videoQuality);
+  if (qLbl) qLbl.textContent = qualityLabelFromValue(state.videoQuality);
 
   // Video sources
   qsa('input[name="video1Source"]').forEach((r) => {
@@ -322,6 +341,7 @@ function renderWizard(state) {
       <div class="wizard-summary-row"><div>Audio items</div><div>${textCount}</div></div>
       <div class="wizard-summary-row"><div>Background music</div><div>${state.bgMusic.enabled ? `on (${Math.round(state.bgMusic.volume * 100)}%)` : 'off'}</div></div>
       <div class="wizard-summary-row"><div>Split screen</div><div>${state.splitScreen ? 'yes' : 'no'}</div></div>
+      <div class="wizard-summary-row"><div>Quality</div><div>${qualityLabelFromValue(state.videoQuality)}</div></div>
       <div class="wizard-summary-row"><div>Video 1</div><div>${v1}</div></div>
       <div class="wizard-summary-row"><div>Video 2</div><div>${v2}</div></div>
     `;
@@ -743,6 +763,7 @@ async function startGeneration(state) {
   const bgMusicEnabled = Boolean(state.bgMusic.enabled);
   const bgMusicVolume = Number(state.bgMusic.volume);
   const bgMusicFileId = state.bgMusic.fileId;
+  const videoQuality = Number(state.videoQuality);
 
   if (!isBatch) {
     const payload = {
@@ -757,6 +778,7 @@ async function startGeneration(state) {
       bg_music_enabled: bgMusicEnabled,
       bg_music_volume: bgMusicVolume,
       bg_music_file_id: bgMusicFileId,
+      video_quality: videoQuality,
     };
     const r = await fetch('/api/generate_video', {
       method: 'POST',
@@ -789,6 +811,7 @@ async function startGeneration(state) {
     bg_music_enabled: bgMusicEnabled,
     bg_music_volume: bgMusicVolume,
     bg_music_file_id: bgMusicFileId,
+    video_quality: videoQuality,
   };
   const r = await fetch('/api/generate_batch', {
     method: 'POST',
@@ -882,6 +905,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const currentPassword = qs('#currentPassword');
   const newPassword = qs('#newPassword');
   const savePasswordBtn = qs('#savePasswordBtn');
+  const videoQuality = qs('#videoQuality');
 
   renderWizard(state);
   refreshYoutubeUi();
@@ -935,6 +959,14 @@ document.addEventListener('DOMContentLoaded', () => {
       } finally {
         clearJobsBtn.disabled = false;
       }
+    });
+  }
+
+  if (videoQuality) {
+    videoQuality.addEventListener('input', () => {
+      state.videoQuality = Math.max(0, Math.min(100, Math.round(Number(videoQuality.value) || 50)));
+      saveState(state);
+      renderWizard(state);
     });
   }
 

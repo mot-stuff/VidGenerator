@@ -112,6 +112,12 @@
                 <label for="splitScreen">Split screen (2 videos)</label>
             </div>
 
+            <div class="form-group" style="margin-top: 12px;">
+                <label for="videoQuality">Quality / speed (<span id="videoQualityLabel">Balanced</span>)</label>
+                <input type="range" id="videoQuality" min="0" max="100" step="1" value="50">
+                <div class="wizard-hint">Lower = faster / smaller. Higher = slower / higher quality.</div>
+            </div>
+
             <div class="video-section">
                 <div class="video-upload">
                     <label for="video1">Video 1 <span id="video1Label"></span></label>
