@@ -563,7 +563,7 @@ input[type="checkbox"] {
     }
     .brand-logo {
         height: 69px;
-        width: auto;
+        width: 330px;
         max-width: 330px;
         border-radius: 0;
     }
