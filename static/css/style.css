@@ -58,7 +58,7 @@ body {
     border: 1px solid var(--border);
     backdrop-filter: blur(10px);
     border-radius: 12px;
-    padding: 10px 14px;
+    padding: 6px 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -76,9 +76,9 @@ body {
 }
 
 .brand-logo {
-    height: clamp(64px, 6vw, 104px);
+    height: 62px;
     width: auto;
-    max-width: clamp(260px, 32vw, 520px);
+    max-width: 520px;
     border-radius: 0;
     display: block;
     box-shadow: none;
@@ -559,12 +559,12 @@ input[type="checkbox"] {
         padding: 10px;
     }
     .nav {
-        padding: 5px;
+        padding: 4px 10px;
     }
     .brand-logo {
-        height: clamp(56px, 9vw, 92px);
+        height: 54px;
         width: auto;
-        max-width: clamp(220px, 70vw, 420px);
+        max-width: 420px;
         border-radius: 0;
     }
     .wizard-stepper {
