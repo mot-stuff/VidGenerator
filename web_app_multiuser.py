@@ -750,9 +750,13 @@ def generate_video():
                     delete_video2 = True
 
             # Create video job record
+            if use_preset_video1 and preset1_path:
+                job_filename = f"preset:{Path(preset1_path).name}"
+            else:
+                job_filename = str(video_file_id or "upload")
             job = VideoJob(
                 user_id=user_id,
-                filename=video_file_id,
+                filename=job_filename,
                 text_content=text,
                 status='processing'
             )
