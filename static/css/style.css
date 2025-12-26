@@ -336,7 +336,7 @@ textarea {
 .auth-grid {
     margin-top: 14px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 14px;
     text-align: left;
     align-items: start;
@@ -782,9 +782,6 @@ input[type="checkbox"] {
 @media (max-width: 900px) {
     .auth-container-wide {
         max-width: 560px;
-    }
-    .auth-grid {
-        grid-template-columns: 1fr;
     }
 }
 
