@@ -8,6 +8,7 @@ import shutil
 import threading
 import time
 import uuid
+import json
 from pathlib import Path
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, after_this_request, send_file, abort
@@ -198,6 +199,47 @@ def _get_preset_video_path(config_key: str) -> Path | None:
     except Exception:
         return None
 
+def _is_youtube_eligible() -> bool:
+    try:
+        if not current_user.is_authenticated:
+            return False
+    except Exception:
+        return False
+
+    tier = (getattr(current_user, "subscription_tier", None) or "").strip().lower()
+    if tier == "pro":
+        return True
+    if bool(getattr(current_user, "is_admin", False)):
+        return True
+    return False
+
+def _youtube_settings_path(user_id: int) -> Path:
+    return get_user_directory(user_id, "youtube") / "settings.json"
+
+def _read_youtube_settings(user_id: int) -> dict:
+    p = _youtube_settings_path(user_id)
+    try:
+        if p.exists():
+            return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return {}
+
+def _get_youtube_auto_upload(user_id: int) -> bool:
+    s = _read_youtube_settings(user_id)
+    try:
+        return bool(s.get("auto_upload", False))
+    except Exception:
+        return False
+
+def _set_youtube_auto_upload(user_id: int, enabled: bool) -> None:
+    p = _youtube_settings_path(user_id)
+    data = _read_youtube_settings(user_id)
+    data["auto_upload"] = bool(enabled)
+    data["updated_at"] = datetime.utcnow().isoformat()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
 def _resolve_preset_video(preset_id: str | None, slot: str) -> Path | None:
     pid = (preset_id or "").strip().lower()
     if not pid:
@@ -216,6 +258,13 @@ def _resolve_preset_video(preset_id: str | None, slot: str) -> Path | None:
 
 def _cleanup_expired_user_artifacts(user_id: int, ttl_s: int = 120) -> None:
     now_ts = time.time()
+    yt_keep = False
+    try:
+        yt_keep = _get_youtube_auto_upload(user_id)
+    except Exception:
+        yt_keep = False
+    ttl_outputs = 24 * 3600 if yt_keep else ttl_s
+    ttl_jobs = 24 * 3600 if yt_keep else ttl_s
 
     try:
         has_active = (
@@ -234,7 +283,12 @@ def _cleanup_expired_user_artifacts(user_id: int, ttl_s: int = 120) -> None:
             continue
         if subdir == "uploads" and has_active:
             continue
-        ttl = ttl_s if subdir != "uploads" else max(ttl_s, 6 * 3600)
+        if subdir == "outputs":
+            ttl = ttl_outputs
+        elif subdir == "uploads":
+            ttl = max(ttl_s, 6 * 3600)
+        else:
+            ttl = ttl_s
         for f in p.iterdir():
             try:
                 if not f.is_file():
@@ -267,7 +321,7 @@ def _cleanup_expired_user_artifacts(user_id: int, ttl_s: int = 120) -> None:
                 except Exception:
                     age_s = None
 
-            if age_s is not None and age_s > ttl_s:
+            if age_s is not None and age_s > ttl_jobs:
                 try:
                     db.session.delete(job)
                 except Exception:
@@ -829,6 +883,19 @@ def generate_video():
                 job.result_path = str(output_path)
                 job.completed_at = datetime.utcnow()
 
+                # Optional: enqueue for YouTube upload (Pro only, requires uploaded token)
+                try:
+                    if _get_youtube_auto_upload(user_id):
+                        youtube_manager = get_user_youtube_manager(user_id)
+                        if youtube_manager.credentials_path.exists() and youtube_manager.token_path.exists():
+                            if youtube_manager.setup_youtube_api():
+                                title = f"{text[:60].strip()}{'…' if len(text) > 60 else ''}"
+                                metadata = create_video_metadata_from_file(Path(output_path), title=title)
+                                youtube_manager.add_video_to_queue(metadata)
+                                youtube_manager.start_background_uploader()
+                except Exception:
+                    pass
+
                 # Clean up temp files
                 try:
                     tts_path.unlink()
@@ -911,8 +978,9 @@ def download_result(job_id):
     @after_this_request
     def _cleanup(response):
         try:
-            if result_path.exists():
-                result_path.unlink()
+            if not _get_youtube_auto_upload(current_user.id):
+                if result_path.exists():
+                    result_path.unlink()
         except Exception:
             pass
         try:
@@ -924,6 +992,82 @@ def download_result(job_id):
         return response
 
     return send_file(result_path, as_attachment=True, download_name=result_path.name)
+
+
+@app.route('/api/youtube/status')
+@login_required
+def youtube_status():
+    eligible = _is_youtube_eligible()
+    tier = (getattr(current_user, "subscription_tier", None) or "").strip().lower()
+
+    user_dir = get_user_directory(current_user.id, "youtube")
+    creds_path = user_dir / "youtube_credentials.json"
+    token_path = user_dir / "youtube_token.json"
+
+    auto_upload = False
+    try:
+        auto_upload = _get_youtube_auto_upload(current_user.id)
+    except Exception:
+        auto_upload = False
+
+    note = None
+    if eligible and creds_path.exists() and not token_path.exists():
+        note = "Token missing (headless servers require uploading youtube_token.json)"
+
+    return jsonify({
+        "success": True,
+        "eligible": eligible,
+        "tier": tier,
+        "has_credentials": creds_path.exists(),
+        "has_token": token_path.exists(),
+        "auto_upload": bool(auto_upload),
+        "note": note,
+    })
+
+
+@app.route('/api/youtube/upload', methods=['POST'])
+@login_required
+def youtube_upload_files():
+    if not _is_youtube_eligible():
+        return jsonify({"success": False, "error": "Pro plan required"}), 403
+
+    if "credentials" not in request.files:
+        return jsonify({"success": False, "error": "Missing credentials file"}), 400
+
+    user_dir = get_user_directory(current_user.id, "youtube")
+    creds_file = request.files["credentials"]
+    token_file = request.files.get("token")
+
+    try:
+        creds_bytes = creds_file.read()
+        creds_json = json.loads(creds_bytes.decode("utf-8"))
+        (user_dir / "youtube_credentials.json").write_text(json.dumps(creds_json, indent=2), encoding="utf-8")
+    except Exception:
+        return jsonify({"success": False, "error": "Invalid credentials JSON"}), 400
+
+    if token_file:
+        try:
+            token_bytes = token_file.read()
+            token_json = json.loads(token_bytes.decode("utf-8"))
+            (user_dir / "youtube_token.json").write_text(json.dumps(token_json, indent=2), encoding="utf-8")
+        except Exception:
+            return jsonify({"success": False, "error": "Invalid token JSON"}), 400
+
+    return jsonify({"success": True})
+
+
+@app.route('/api/youtube/auto_upload', methods=['POST'])
+@login_required
+def youtube_set_auto_upload():
+    if not _is_youtube_eligible():
+        return jsonify({"success": False, "error": "Pro plan required"}), 403
+    data = request.json or {}
+    enabled = bool(data.get("enabled", False))
+    try:
+        _set_youtube_auto_upload(current_user.id, enabled)
+    except Exception:
+        return jsonify({"success": False, "error": "Failed to update setting"}), 500
+    return jsonify({"success": True, "enabled": enabled})
 
 @app.route('/api/generate_batch', methods=['POST'])
 @login_required
@@ -1078,6 +1222,18 @@ def generate_batch():
                         job.status = 'completed'
                         job.result_path = str(output_path)
                         job.completed_at = datetime.utcnow()
+
+                        # Optional: enqueue for YouTube upload (Pro only, requires uploaded token)
+                        try:
+                            if _get_youtube_auto_upload(user_id):
+                                if youtube_manager.credentials_path.exists() and youtube_manager.token_path.exists():
+                                    if youtube_manager.setup_youtube_api():
+                                        title = f"{text[:60].strip()}{'…' if len(text) > 60 else ''}"
+                                        metadata = create_video_metadata_from_file(Path(output_path), title=title)
+                                        youtube_manager.add_video_to_queue(metadata)
+                                        youtube_manager.start_background_uploader()
+                        except Exception:
+                            pass
                         
                         # Clean up temp files
                         try:

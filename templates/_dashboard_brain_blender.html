@@ -1,7 +1,10 @@
 {% from "_components.html" import collapsible %}
 
 {% call collapsible('Brain Blender', open=False, subtitle='Generate your slop here') %}
+{% set is_pro = (user.subscription_tier == 'pro') %}
 <div class="content">
+    <div id="userPlan" class="hidden" data-tier="{{ user.subscription_tier }}"></div>
+
     <div class="section">
         <h2>About</h2>
         <div class="wizard-hint">
@@ -17,6 +20,7 @@
         <button class="wizard-step" type="button" data-step="1">1. Text</button>
         <button class="wizard-step" type="button" data-step="2">2. Video</button>
         <button class="wizard-step" type="button" data-step="3">3. Generate</button>
+        <button class="wizard-step {% if not is_pro %}locked{% endif %}" type="button" data-step="4" {% if not is_pro %}disabled{% endif %}>4. YouTube {% if not is_pro %}🔒{% endif %}</button>
     </div>
 
     <div class="wizard-panel" id="step1Panel">
@@ -149,6 +153,43 @@
                 <div style="padding: 20px; text-align: center; color: #6b7280;">Loading recent jobs...</div>
             </div>
             <button class="btn btn-secondary" type="button" id="refreshJobsBtn">Refresh</button>
+        </div>
+    </div>
+
+    <div class="wizard-panel hidden" id="step4Panel">
+        <div class="section">
+            <h2>Step 4: YouTube Integration</h2>
+
+            {% if not is_pro %}
+            <div class="wizard-hint">
+                🔒 Available on the <strong>Pro</strong> plan only.
+            </div>
+            {% endif %}
+
+            <div class="wizard-hint">
+                Upload your YouTube API credential files to enable auto-upload from your generation queue.
+            </div>
+
+            <div class="form-group" style="margin-top: 12px;">
+                <label for="ytCredentialsFile">youtube_credentials.json</label>
+                <input type="file" id="ytCredentialsFile" accept=".json" {% if not is_pro %}disabled{% endif %}>
+            </div>
+
+            <div class="form-group">
+                <label for="ytTokenFile">youtube_token.json (optional, required for headless servers)</label>
+                <input type="file" id="ytTokenFile" accept=".json" {% if not is_pro %}disabled{% endif %}>
+            </div>
+
+            <div class="wizard-actions">
+                <button class="btn btn-secondary" type="button" id="ytUploadBtn" {% if not is_pro %}disabled{% endif %}>Save YouTube files</button>
+            </div>
+
+            <div class="checkbox-group" style="margin-top: 12px;">
+                <input type="checkbox" id="ytAutoUpload" {% if not is_pro %}disabled{% endif %}>
+                <label for="ytAutoUpload" style="margin: 0;">Auto-upload completed videos</label>
+            </div>
+
+            <div id="ytStatusInfo" class="file-info hidden"></div>
         </div>
     </div>
 </div>

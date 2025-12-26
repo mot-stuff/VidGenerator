@@ -46,6 +46,19 @@ function setHidden(el, hidden) {
   el.classList.toggle('hidden', hidden);
 }
 
+function getUserTier() {
+  const el = qs('#userPlan');
+  return el ? String(el.dataset.tier || '').trim().toLowerCase() : '';
+}
+
+function isProUser() {
+  return getUserTier() === 'pro';
+}
+
+function getMaxStep() {
+  return isProUser() ? 4 : 3;
+}
+
 function updateStatus(message, isError = false) {
   const statusText = qs('#statusText');
   const statusDot = qs('.status-dot');
@@ -136,6 +149,8 @@ function renderTextList(state) {
 
 function renderWizard(state) {
   state = normalizeState(state);
+  const maxStep = getMaxStep();
+  if (state.step > maxStep) state.step = maxStep;
 
   // Stepper
   qsa('.wizard-step').forEach((btn) => {
@@ -149,6 +164,7 @@ function renderWizard(state) {
     { step: 1, el: qs('#step1Panel') },
     { step: 2, el: qs('#step2Panel') },
     { step: 3, el: qs('#step3Panel') },
+    { step: 4, el: qs('#step4Panel') },
   ];
 
   panels.forEach(({ step, el }) => {
@@ -171,7 +187,7 @@ function renderWizard(state) {
   const backBtn = qs('#backBtn');
   const nextBtn = qs('#nextBtn');
   if (backBtn) backBtn.disabled = state.step <= 1;
-  if (nextBtn) nextBtn.textContent = state.step >= 3 ? 'Done' : 'Next';
+  if (nextBtn) nextBtn.textContent = state.step >= maxStep ? 'Done' : 'Next';
 
   // Text mode sections
   const modeSingle = state.textMode === 'single';
@@ -536,9 +552,45 @@ async function startGeneration(state) {
   updateStatus('✅ Batch started');
 }
 
+async function refreshYoutubeUi() {
+  const statusEl = qs('#ytStatusInfo');
+  const autoEl = qs('#ytAutoUpload');
+  if (!statusEl || !autoEl) return;
+
+  if (!isProUser()) {
+    statusEl.textContent = '🔒 Pro required for YouTube integration.';
+    statusEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const r = await fetch('/api/youtube/status', { cache: 'no-store' });
+    const parsed = await parseApiResponse(r);
+    if (!parsed.ok || !parsed.data || !parsed.data.success) {
+      statusEl.textContent = 'Failed to load YouTube status.';
+      statusEl.classList.remove('hidden');
+      return;
+    }
+
+    const d = parsed.data;
+    autoEl.checked = Boolean(d.auto_upload);
+    const creds = d.has_credentials ? '✅ credentials' : '❌ credentials';
+    const token = d.has_token ? '✅ token' : '❌ token';
+    const enabled = d.auto_upload ? '✅ auto-upload on' : 'auto-upload off';
+    const note = d.note ? ` — ${String(d.note)}` : '';
+    statusEl.textContent = `${creds} | ${token} | ${enabled}${note}`;
+    statusEl.classList.remove('hidden');
+  } catch {
+    statusEl.textContent = 'Failed to load YouTube status.';
+    statusEl.classList.remove('hidden');
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   let state = normalizeState(loadState() || defaultState());
   const presetCfg = getPresetConfig();
+  const maxStep = getMaxStep();
+  if (state.step > maxStep) state.step = maxStep;
 
   // If preset is configured and the user has no uploaded selection yet, default to preset for video1
   if (presetCfg.video1Path && !state.videos.video1 && state.videoSources.video1 === 'upload') {
@@ -553,8 +605,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearTextsBtn = qs('#clearTextsBtn');
   const csvFile = qs('#csvFile');
   const generateBtn = qs('#generateBtn');
+  const ytUploadBtn = qs('#ytUploadBtn');
+  const ytCreds = qs('#ytCredentialsFile');
+  const ytToken = qs('#ytTokenFile');
+  const ytAutoUpload = qs('#ytAutoUpload');
 
   renderWizard(state);
+  refreshYoutubeUi();
 
   validateUploadedVideos(state).then((nextState) => {
     state = nextState;
@@ -567,7 +624,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const btn = e.target.closest('.wizard-step');
       if (!btn) return;
       const step = Number(btn.getAttribute('data-step'));
-      if (![1, 2, 3].includes(step)) return;
+      const max = getMaxStep();
+      if (step < 1 || step > max) return;
       state.step = step;
       saveState(state);
       renderWizard(state);
@@ -728,7 +786,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStatus('Upload required video(s) first', true);
         return;
       }
-      state.step = Math.min(3, state.step + 1);
+      state.step = Math.min(getMaxStep(), state.step + 1);
       saveState(state);
       renderWizard(state);
     });
@@ -746,6 +804,54 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshJobsBtn.addEventListener('click', async () => {
       jobsPollDelayMs = 2000;
       await fetchAndRenderJobs();
+    });
+  }
+
+  if (ytUploadBtn) {
+    ytUploadBtn.addEventListener('click', async () => {
+      if (!isProUser()) return;
+      if (!ytCreds || !ytCreds.files || !ytCreds.files[0]) {
+        updateStatus('Select youtube_credentials.json first', true);
+        return;
+      }
+
+      const form = new FormData();
+      form.append('credentials', ytCreds.files[0]);
+      if (ytToken && ytToken.files && ytToken.files[0]) {
+        form.append('token', ytToken.files[0]);
+      }
+
+      updateStatus('Saving YouTube files...');
+      const r = await fetch('/api/youtube/upload', { method: 'POST', body: form });
+      const parsed = await parseApiResponse(r);
+      if (!parsed.ok || !parsed.data || !parsed.data.success) {
+        const msg = parsed.data && parsed.data.error ? parsed.data.error : parsed.raw ? parsed.raw.slice(0, 200) : 'Failed';
+        updateStatus(`❌ YouTube save failed (${parsed.status}): ${msg}`, true);
+        await refreshYoutubeUi();
+        return;
+      }
+      updateStatus('✅ YouTube files saved');
+      await refreshYoutubeUi();
+    });
+  }
+
+  if (ytAutoUpload) {
+    ytAutoUpload.addEventListener('change', async () => {
+      if (!isProUser()) return;
+      const enabled = Boolean(ytAutoUpload.checked);
+      const r = await fetch('/api/youtube/auto_upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      const parsed = await parseApiResponse(r);
+      if (!parsed.ok || !parsed.data || !parsed.data.success) {
+        const msg = parsed.data && parsed.data.error ? parsed.data.error : parsed.raw ? parsed.raw.slice(0, 200) : 'Failed';
+        updateStatus(`❌ YouTube toggle failed (${parsed.status}): ${msg}`, true);
+      } else {
+        updateStatus(enabled ? '✅ Auto-upload enabled' : '✅ Auto-upload disabled');
+      }
+      await refreshYoutubeUi();
     });
   }
 
