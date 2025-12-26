@@ -9,7 +9,14 @@
         <div class="section">
             <h2>What is mindsrot.app?</h2>
             <div class="wizard-hint">
-                Mindsrot helps you generate massive amounts of brain rot for any social media. Upload in bulk and generate today!
+                Mindsrot helps you generate massive amounts of
+                <span class="brainrot-hover">
+                    brain rot
+                    <span class="brainrot-tooltip" aria-hidden="true">
+                        <img class="brainrot-tooltip-gif" src="{{ url_for('static', filename='images/example.gif') }}" alt="">
+                    </span>
+                </span>
+                for any social media. Upload in bulk and generate today!
             </div>
 
             <ul class="auth-list">
@@ -17,13 +24,6 @@
                 <li><strong>Captions</strong>: Creates tiktok style captions for ultimate braint rotting power!</li>
                 <li><strong>Plans</strong>: Free and Pro. Some features (like the Upload step) are Pro-only.</li>
             </ul>
-
-            <img
-                class="auth-hero-gif"
-                src="{{ url_for('static', filename='images/example.gif') }}"
-                alt="Example output"
-                loading="eager"
-            >
         </div>
 
         <h2 class="auth-title">Login</h2>

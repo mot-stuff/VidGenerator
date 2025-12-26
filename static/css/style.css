@@ -358,25 +358,44 @@ textarea {
     margin: 8px 0;
 }
 
-.auth-hero-gif {
-    height: 220px;
-    width: auto;
-    max-width: 220px;
-    float: right;
-    object-fit: cover;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.72);
-    margin-top: 8px;
-    margin-left: 12px;
+.brainrot-hover {
+    position: relative;
+    display: inline-block;
+    font-weight: 800;
+    border-bottom: 2px dotted rgba(15, 23, 42, 0.32);
+    cursor: help;
+}
+
+.brainrot-tooltip {
+    position: absolute;
+    z-index: 20;
+    right: 0;
+    top: calc(100% + 10px);
+    width: 220px;
+    padding: 8px;
+    border-radius: 14px;
+    border: 1px solid rgba(15, 23, 42, 0.22);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.22);
+    display: none;
+}
+
+.brainrot-hover:hover .brainrot-tooltip {
+    display: block;
+}
+
+.brainrot-tooltip-gif {
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    display: block;
 }
 
 @media (max-width: 600px) {
-    .auth-hero-gif {
-        float: none;
-        width: 100%;
-        margin-left: 0;
-        margin-top: 10px;
+    .brainrot-tooltip {
+        left: 0;
+        right: auto;
+        width: min(320px, 92vw);
     }
 }
 
