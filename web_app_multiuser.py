@@ -175,16 +175,29 @@ def admin_required(fn):
 def _cleanup_expired_user_artifacts(user_id: int, ttl_s: int = 120) -> None:
     now_ts = time.time()
 
-    # Delete old files (uploads/outputs/temp) to keep disk usage bounded
-    for subdir in ("uploads", "outputs", "temp"):
+    try:
+        has_active = (
+            VideoJob.query.filter_by(user_id=user_id)
+            .filter(VideoJob.status.in_(('processing', 'pending')))
+            .count()
+            > 0
+        )
+    except Exception:
+        has_active = False
+
+    # Delete old files (outputs/temp always; uploads only when idle)
+    for subdir in ("outputs", "temp", "uploads"):
         p = Path("user_data") / str(user_id) / subdir
         if not p.exists():
             continue
+        if subdir == "uploads" and has_active:
+            continue
+        ttl = ttl_s if subdir != "uploads" else max(ttl_s, 6 * 3600)
         for f in p.iterdir():
             try:
                 if not f.is_file():
                     continue
-                if (now_ts - f.stat().st_mtime) > ttl_s:
+                if (now_ts - f.stat().st_mtime) > ttl:
                     f.unlink()
             except Exception:
                 pass
@@ -747,7 +760,14 @@ def generate_video():
 
             except Exception as e:
                 job.status = 'failed'
-                job.error_message = str(e)
+                msg = str(e)
+                low = msg.lower()
+                if "could not be found" in low or "no such file" in low:
+                    job.error_message = "Background video was removed while processing. Please re-upload and try again."
+                elif "failed to read the first frame" in low:
+                    job.error_message = "Couldn't read your background video (possibly corrupted/unsupported). Try re-encoding or uploading a different MP4."
+                else:
+                    job.error_message = msg
 
             db.session.commit()
             db.session.remove()
@@ -924,7 +944,14 @@ def generate_batch():
                             
                     except Exception as e:
                         job.status = 'failed'
-                        job.error_message = str(e)
+                        msg = str(e)
+                        low = msg.lower()
+                        if "could not be found" in low or "no such file" in low:
+                            job.error_message = "Background video was removed while processing. Please re-upload and try again."
+                        elif "failed to read the first frame" in low:
+                            job.error_message = "Couldn't read your background video (possibly corrupted/unsupported). Try re-encoding or uploading a different MP4."
+                        else:
+                            job.error_message = msg
                     
                     db.session.commit()
                     
@@ -935,6 +962,16 @@ def generate_batch():
             except Exception as e:
                 print(f"Batch generation error: {e}")
             finally:
+                try:
+                    if video_path.exists():
+                        video_path.unlink()
+                except Exception:
+                    pass
+                try:
+                    if video2_path and video2_path.exists():
+                        video2_path.unlink()
+                except Exception:
+                    pass
                 db.session.remove()
     
     threading.Thread(
