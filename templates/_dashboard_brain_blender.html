@@ -20,7 +20,7 @@
     </div>
 
     <div class="wizard-stepper" id="wizardStepper">
-        <button class="wizard-step" type="button" data-step="1">1. Text</button>
+        <button class="wizard-step" type="button" data-step="1">1. Audio</button>
         <button class="wizard-step" type="button" data-step="2">2. Video</button>
         <button class="wizard-step" type="button" data-step="3">3. Generate</button>
         <button class="wizard-step {% if not is_pro %}locked{% endif %}" type="button" data-step="4" {% if not is_pro %}disabled{% endif %}>4. Upload {% if not is_pro %}🔒{% endif %}</button>
@@ -28,7 +28,7 @@
 
     <div class="wizard-panel" id="step1Panel">
         <div class="section">
-            <h2>Step 1: Text</h2>
+            <h2>Step 1: Audio</h2>
 
             <div class="wizard-row">
                 <label class="wizard-radio">
@@ -65,6 +65,33 @@
                 <div id="textList" class="wizard-list-body"></div>
                 <div class="wizard-list-actions">
                     <button class="btn btn-secondary" type="button" id="clearTextsBtn">Clear</button>
+                </div>
+            </div>
+
+            <div class="section" style="margin-top: 14px;">
+                <h2>Background music (optional)</h2>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="bgMusicEnabled">
+                    <label for="bgMusicEnabled" style="margin: 0;">Add background music</label>
+                </div>
+
+                <div id="bgMusicControls" class="hidden">
+                    <div class="form-group">
+                        <label for="bgMusicVolume">Music volume (<span id="bgMusicVolumeLabel">15%</span>)</label>
+                        <input type="range" id="bgMusicVolume" min="0" max="40" step="1" value="15">
+                        <div class="wizard-hint" style="margin-top: 8px;">
+                            If you don't upload a track, a random track from the server library may be used (if configured).
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bgMusicFile">Upload background music (mp3/wav/m4a)</label>
+                        <input type="file" id="bgMusicFile" accept=".mp3,.wav,.m4a,.aac,.ogg,.flac">
+                        <div id="bgMusicUploadProgress" class="progress hidden" aria-hidden="true">
+                            <div id="bgMusicUploadProgressFill" class="progress-fill"></div>
+                        </div>
+                        <div id="bgMusicInfo" class="file-info hidden"></div>
+                    </div>
                 </div>
             </div>
         </div>

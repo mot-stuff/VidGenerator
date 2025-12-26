@@ -718,6 +718,27 @@ def upload_csv():
         return jsonify({'error': f'Error processing CSV: {e}'}), 400
 
 
+@app.route('/api/upload_audio', methods=['POST'])
+@login_required
+def upload_audio():
+    if 'audio' not in request.files:
+        return jsonify({'error': 'No audio file'}), 400
+
+    file = request.files['audio']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    allowed = ('.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac')
+    if not file.filename.lower().endswith(allowed):
+        return jsonify({'error': 'Invalid audio type'}), 400
+
+    user_dir = get_user_directory(current_user.id, "uploads")
+    safe_name = f"bgm_{int(time.time())}_{file.filename}"
+    filepath = user_dir / safe_name
+    file.save(filepath)
+
+    return jsonify({'success': True, 'filename': file.filename, 'file_id': safe_name, 'path': str(filepath)})
+
 @app.route('/api/validate_uploads', methods=['POST'])
 @login_required
 def validate_uploads():
@@ -754,6 +775,9 @@ def generate_video():
     use_preset_video2 = bool(data.get('use_preset_video2', False))
     video1_preset_id = (data.get('video1_preset_id') or '').strip() or None
     video2_preset_id = (data.get('video2_preset_id') or '').strip() or None
+    bg_music_enabled = bool(data.get('bg_music_enabled', False))
+    bg_music_volume = data.get('bg_music_volume', 0.15)
+    bg_music_file_id = (data.get('bg_music_file_id') or '').strip() or None
     user_id = current_user.id
     
     if not text:
@@ -797,6 +821,13 @@ def generate_video():
             video2_path = user_upload_dir / str(video2_file_id)
             if not video2_path.exists():
                 return jsonify({'error': 'Second uploaded video not found'}), 400
+
+    bg_music_path = None
+    if bg_music_enabled and bg_music_file_id:
+        p = user_upload_dir / str(bg_music_file_id)
+        if not p.exists():
+            return jsonify({'error': 'Background music file not found'}), 400
+        bg_music_path = p
     
     def generate_worker(
         user_id: int,
@@ -810,6 +841,9 @@ def generate_video():
         video2_preset_id: str | None,
         preset1_path: str | None,
         preset2_path: str | None,
+        bg_music_enabled: bool,
+        bg_music_volume: float,
+        bg_music_file_id: str | None,
     ):
         job_id = str(uuid.uuid4())
         with app.app_context():
@@ -834,6 +868,12 @@ def generate_video():
                 elif video2_file_id is not None:
                     video2_path = user_upload_dir / str(video2_file_id)
                     delete_video2 = True
+
+            bg_music_path = None
+            delete_music = False
+            if bg_music_enabled and bg_music_file_id:
+                bg_music_path = user_upload_dir / str(bg_music_file_id)
+                delete_music = True
 
             # Create video job record
             if use_preset_video1:
@@ -882,9 +922,10 @@ def generate_video():
                     crf=18,
                     video_bitrate=None,
                     karaoke_word_spans=word_spans,
-                    add_background_music=True,
-                    bg_music_volume=0.15,
+                    add_background_music=bool(bg_music_enabled),
+                    bg_music_volume=float(bg_music_volume),
                     bg_music_dir="assets/background_music",
+                    bg_music_path=str(bg_music_path) if bg_music_path else None,
                     split_screen_enabled=split_screen_enabled,
                     video_path2=str(video2_path) if video2_path else None,
                     tail_padding_s=3.0,
@@ -925,6 +966,11 @@ def generate_video():
                         video2_path.unlink()
                 except Exception:
                     pass
+                try:
+                    if delete_music and bg_music_path and bg_music_path.exists():
+                        bg_music_path.unlink()
+                except Exception:
+                    pass
 
             except Exception as e:
                 job.status = 'failed'
@@ -954,6 +1000,9 @@ def generate_video():
             video2_preset_id,
             str(video_path) if use_preset_video1 else None,
             str(video2_path) if (split_screen_enabled and use_preset_video2 and video2_path) else None,
+            bool(bg_music_enabled),
+            float(bg_music_volume) if isinstance(bg_music_volume, (int, float)) else 0.15,
+            bg_music_file_id,
         ),
         daemon=True
     ).start()
@@ -1196,6 +1245,9 @@ def generate_batch():
     use_preset_video2 = bool(data.get('use_preset_video2', False))
     video1_preset_id = (data.get('video1_preset_id') or '').strip() or None
     video2_preset_id = (data.get('video2_preset_id') or '').strip() or None
+    bg_music_enabled = bool(data.get('bg_music_enabled', False))
+    bg_music_volume = data.get('bg_music_volume', 0.15)
+    bg_music_file_id = (data.get('bg_music_file_id') or '').strip() or None
     user_id = current_user.id
     
     if not texts:
@@ -1242,6 +1294,13 @@ def generate_batch():
             video2_path = user_upload_dir / str(video2_file_id)
             if not video2_path.exists():
                 return jsonify({'error': 'Second uploaded video not found'}), 400
+
+    bg_music_path = None
+    if bg_music_enabled and bg_music_file_id:
+        p = user_upload_dir / str(bg_music_file_id)
+        if not p.exists():
+            return jsonify({'error': 'Background music file not found'}), 400
+        bg_music_path = p
     
     def batch_worker(
         user_id: int,
@@ -1255,6 +1314,9 @@ def generate_batch():
         video2_preset_id: str | None,
         preset1_path: str | None,
         preset2_path: str | None,
+        bg_music_enabled: bool,
+        bg_music_volume: float,
+        bg_music_file_id: str | None,
     ):
         with app.app_context():
             user_output_dir = get_user_directory(user_id, "outputs")
@@ -1277,6 +1339,12 @@ def generate_batch():
                 elif video2_file_id is not None:
                     video2_path = user_upload_dir / str(video2_file_id)
                     delete_video2 = True
+
+            bg_music_path = None
+            delete_music = False
+            if bg_music_enabled and bg_music_file_id:
+                bg_music_path = user_upload_dir / str(bg_music_file_id)
+                delete_music = True
         
             try:
                 total = len(texts)
@@ -1325,9 +1393,10 @@ def generate_batch():
                             crf=18,
                             video_bitrate=None,
                             karaoke_word_spans=word_spans,
-                            add_background_music=True,
-                            bg_music_volume=0.15,
+                            add_background_music=bool(bg_music_enabled),
+                            bg_music_volume=float(bg_music_volume),
                             bg_music_dir="assets/background_music",
+                            bg_music_path=str(bg_music_path) if bg_music_path else None,
                             split_screen_enabled=split_screen_enabled,
                             video_path2=str(video2_path) if video2_path else None,
                             tail_padding_s=3.0,
@@ -1386,6 +1455,11 @@ def generate_batch():
                         video2_path.unlink()
                 except Exception:
                     pass
+                try:
+                    if delete_music and bg_music_path and bg_music_path.exists():
+                        bg_music_path.unlink()
+                except Exception:
+                    pass
                 db.session.remove()
     
     threading.Thread(
@@ -1402,6 +1476,9 @@ def generate_batch():
             video2_preset_id,
             str(video_path) if use_preset_video1 else None,
             str(video2_path) if (split_screen_enabled and use_preset_video2 and video2_path) else None,
+            bool(bg_music_enabled),
+            float(bg_music_volume) if isinstance(bg_music_volume, (int, float)) else 0.15,
+            bg_music_file_id,
         ),
         daemon=True
     ).start()

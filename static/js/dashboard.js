@@ -26,6 +26,7 @@ function defaultState() {
     textMode: 'single', // single | batch
     singleText: '',
     texts: [],
+    bgMusic: { enabled: false, volume: 0.15, fileId: null },
     splitScreen: false,
     videos: { video1: null, video2: null }, // file_id values
     videoSources: { video1: 'upload', video2: 'upload' }, // upload | preset
@@ -114,6 +115,13 @@ function normalizeState(state) {
   if (!state.presetIds) state.presetIds = { video1: 'minecraft_parkour', video2: 'minecraft_parkour' };
   if (!state.presetIds.video1) state.presetIds.video1 = 'minecraft_parkour';
   if (!state.presetIds.video2) state.presetIds.video2 = 'minecraft_parkour';
+  if (!state.bgMusic) state.bgMusic = { enabled: false, volume: 0.15, fileId: null };
+  if (typeof state.bgMusic.enabled !== 'boolean') state.bgMusic.enabled = Boolean(state.bgMusic.enabled);
+  {
+    const v = Number(state.bgMusic.volume);
+    state.bgMusic.volume = Number.isFinite(v) ? Math.max(0, Math.min(0.4, v)) : 0.15;
+  }
+  if (!state.bgMusic.fileId) state.bgMusic.fileId = null;
   return state;
 }
 
@@ -311,11 +319,27 @@ function renderWizard(state) {
           : 'missing'
       : 'n/a';
     summary.innerHTML = `
-      <div class="wizard-summary-row"><div>Text items</div><div>${textCount}</div></div>
+      <div class="wizard-summary-row"><div>Audio items</div><div>${textCount}</div></div>
+      <div class="wizard-summary-row"><div>Background music</div><div>${state.bgMusic.enabled ? `on (${Math.round(state.bgMusic.volume * 100)}%)` : 'off'}</div></div>
       <div class="wizard-summary-row"><div>Split screen</div><div>${state.splitScreen ? 'yes' : 'no'}</div></div>
       <div class="wizard-summary-row"><div>Video 1</div><div>${v1}</div></div>
       <div class="wizard-summary-row"><div>Video 2</div><div>${v2}</div></div>
     `;
+  }
+
+  // Background music UI
+  const bgEnabled = qs('#bgMusicEnabled');
+  const bgControls = qs('#bgMusicControls');
+  const bgVol = qs('#bgMusicVolume');
+  const bgVolLabel = qs('#bgMusicVolumeLabel');
+  const bgInfo = qs('#bgMusicInfo');
+  if (bgEnabled) bgEnabled.checked = Boolean(state.bgMusic.enabled);
+  setHidden(bgControls, !state.bgMusic.enabled);
+  if (bgVol) bgVol.value = String(Math.round(state.bgMusic.volume * 100));
+  if (bgVolLabel) bgVolLabel.textContent = `${Math.round(state.bgMusic.volume * 100)}%`;
+  if (bgInfo) {
+    if (state.bgMusic.enabled && state.bgMusic.fileId) bgInfo.classList.remove('hidden');
+    else bgInfo.classList.add('hidden');
   }
 
   // Text list
@@ -419,6 +443,70 @@ async function uploadVideo(state, videoType) {
 
   state.videos[videoType] = result.data.file_id;
   updateStatus(`✅ ${videoType} uploaded`);
+  return state;
+}
+
+async function uploadBgMusic(state) {
+  state = normalizeState(state);
+  const input = qs('#bgMusicFile');
+  if (!input || !input.files || !input.files[0]) return state;
+  const file = input.files[0];
+
+  const progressWrap = qs('#bgMusicUploadProgress');
+  const progressFill = qs('#bgMusicUploadProgressFill');
+  const infoDiv = qs('#bgMusicInfo');
+
+  if (progressFill) progressFill.style.width = '0%';
+  if (progressWrap) progressWrap.classList.remove('hidden');
+  if (infoDiv) infoDiv.classList.add('hidden');
+
+  updateStatus('Uploading background music...');
+
+  const formData = new FormData();
+  formData.append('audio', file);
+
+  const result = await new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload_audio', true);
+
+    xhr.upload.onprogress = (evt) => {
+      if (!evt.lengthComputable) return;
+      const pct = Math.max(0, Math.min(100, Math.round((evt.loaded / evt.total) * 100)));
+      if (progressFill) progressFill.style.width = `${pct}%`;
+    };
+
+    xhr.onload = () => {
+      let data = null;
+      try {
+        data = JSON.parse(xhr.responseText || '{}');
+      } catch {
+        data = null;
+      }
+      resolve({ status: xhr.status, ok: xhr.status >= 200 && xhr.status < 300, data, raw: xhr.responseText || '' });
+    };
+
+    xhr.onerror = () => resolve({ status: 0, ok: false, data: null, raw: '' });
+    xhr.send(formData);
+  });
+
+  if (!result.ok || !result.data || !result.data.success) {
+    const msg = result.data && result.data.error ? result.data.error : result.raw ? result.raw.slice(0, 200) : 'No response body';
+    updateStatus(`Upload failed (${result.status}): ${msg}`, true);
+    if (progressWrap) progressWrap.classList.add('hidden');
+    return state;
+  }
+
+  if (progressFill) progressFill.style.width = '100%';
+  if (progressWrap) setTimeout(() => progressWrap.classList.add('hidden'), 350);
+
+  state.bgMusic.fileId = result.data.file_id;
+
+  if (infoDiv) {
+    infoDiv.textContent = `✅ ${file.name}`;
+    infoDiv.classList.remove('hidden');
+  }
+
+  updateStatus('✅ Background music uploaded');
   return state;
 }
 
@@ -542,6 +630,9 @@ async function startGeneration(state) {
   const usePresetVideo2 = state.videoSources.video2 === 'preset';
   const video1PresetId = usePresetVideo1 ? String(state.presetIds.video1 || 'minecraft_parkour') : null;
   const video2PresetId = usePresetVideo2 ? String(state.presetIds.video2 || 'minecraft_parkour') : null;
+  const bgMusicEnabled = Boolean(state.bgMusic.enabled);
+  const bgMusicVolume = Number(state.bgMusic.volume);
+  const bgMusicFileId = state.bgMusic.fileId;
 
   if (!isBatch) {
     const payload = {
@@ -553,6 +644,9 @@ async function startGeneration(state) {
       use_preset_video2: usePresetVideo2,
       video1_preset_id: video1PresetId,
       video2_preset_id: video2PresetId,
+      bg_music_enabled: bgMusicEnabled,
+      bg_music_volume: bgMusicVolume,
+      bg_music_file_id: bgMusicFileId,
     };
     const r = await fetch('/api/generate_video', {
       method: 'POST',
@@ -582,6 +676,9 @@ async function startGeneration(state) {
     use_preset_video2: usePresetVideo2,
     video1_preset_id: video1PresetId,
     video2_preset_id: video2PresetId,
+    bg_music_enabled: bgMusicEnabled,
+    bg_music_volume: bgMusicVolume,
+    bg_music_file_id: bgMusicFileId,
   };
   const r = await fetch('/api/generate_batch', {
     method: 'POST',
@@ -659,6 +756,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearTextsBtn = qs('#clearTextsBtn');
   const csvFile = qs('#csvFile');
   const generateBtn = qs('#generateBtn');
+  const bgEnabled = qs('#bgMusicEnabled');
+  const bgVol = qs('#bgMusicVolume');
+  const bgFile = qs('#bgMusicFile');
   const ytAutoUpload = qs('#ytAutoUpload');
   const ytSaveCredsBtn = qs('#ytSaveCredsBtn');
   const ytConnectBtn = qs('#ytConnectBtn');
@@ -667,6 +767,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
   renderWizard(state);
   refreshYoutubeUi();
+
+  if (bgEnabled) {
+    bgEnabled.addEventListener('change', () => {
+      state.bgMusic.enabled = Boolean(bgEnabled.checked);
+      if (!state.bgMusic.enabled) {
+        state.bgMusic.fileId = null;
+        const info = qs('#bgMusicInfo');
+        if (info) info.classList.add('hidden');
+        const f = qs('#bgMusicFile');
+        if (f) f.value = '';
+      }
+      saveState(state);
+      renderWizard(state);
+    });
+  }
+
+  if (bgVol) {
+    bgVol.addEventListener('input', () => {
+      const pct = Number(bgVol.value);
+      const v = Number.isFinite(pct) ? Math.max(0, Math.min(40, pct)) / 100 : 0.15;
+      state.bgMusic.volume = v;
+      saveState(state);
+      renderWizard(state);
+    });
+  }
+
+  if (bgFile) {
+    bgFile.addEventListener('change', async () => {
+      if (!state.bgMusic.enabled) state.bgMusic.enabled = true;
+      state = await uploadBgMusic(state);
+      saveState(state);
+      renderWizard(state);
+    });
+  }
 
   validateUploadedVideos(state).then((nextState) => {
     state = nextState;

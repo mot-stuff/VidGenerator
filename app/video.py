@@ -358,6 +358,7 @@ def compose_video_with_tts(
     add_background_music: bool = True,
     bg_music_volume: float = 0.10,
     bg_music_dir: Path | str = "bg music",
+    bg_music_path: Path | str | None = None,
     split_screen_enabled: bool = False,
     video_path2: Path | str | None = None,
     tail_padding_s: float = 0.0,
@@ -401,10 +402,10 @@ def compose_video_with_tts(
     # Prepare final audio (TTS + optional background music)
     final_audio = audio
     if add_background_music:
-        bg_music_path = _get_random_background_music(bg_music_dir)
-        if bg_music_path:
+        chosen_bg = Path(bg_music_path) if bg_music_path else _get_random_background_music(bg_music_dir)
+        if chosen_bg:
             try:
-                bg_music = AudioFileClip(str(bg_music_path))
+                bg_music = AudioFileClip(str(chosen_bg))
                 # Choose random start time in background music
                 if bg_music.duration > duration:
                     max_start = bg_music.duration - duration
